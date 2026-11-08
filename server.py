@@ -89,6 +89,15 @@ def format_size(bytes_num):
 
 
 def sanitize_filename(filename):
+    if not filename:
+        return f"audio_{int(time.time())}.mp3"
+    # Auto-repair mojibake if filename was passed as latin1-decoded utf-8
+    try:
+        candidate = filename.encode('latin1').decode('utf-8')
+        if any(ord(c) > 127 for c in candidate):
+            filename = candidate
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        pass
     filename = os.path.basename(filename)
     filename = re.sub(r'[\x00-\x1f\x7f/\\:\*\?"<>\|]', '', filename).strip()
     filename = filename.lstrip('. ')
@@ -242,9 +251,9 @@ def parse_streaming_multipart(stream, boundary, content_length, on_file_start, o
             if not hline:
                 break
             try:
-                decoded = hline.decode('latin1')
-            except Exception:
-                decoded = hline.decode('utf-8', errors='replace')
+                decoded = hline.decode('utf-8')
+            except UnicodeDecodeError:
+                decoded = hline.decode('latin1', errors='replace')
             if ':' in decoded:
                 k, v = decoded.split(':', 1)
                 headers[k.strip().lower()] = v.strip()
@@ -252,13 +261,27 @@ def parse_streaming_multipart(stream, boundary, content_length, on_file_start, o
         cd = headers.get('content-disposition', '')
         filename = None
 
-        m_fn = re.search(r'filename="([^"]*)"', cd)
-        if m_fn:
-            filename = m_fn.group(1)
-        elif "filename*=" in cd:
+        if "filename*=" in cd:
             m_fn_star = re.search(r"filename\*=(?:UTF-8''|utf-8'')([^;]+)", cd)
             if m_fn_star:
-                filename = urllib.parse.unquote(m_fn_star.group(1))
+                filename = urllib.parse.unquote(m_fn_star.group(1).strip().strip('"\''))
+
+        if not filename:
+            m_fn = re.search(r'filename="([^"]*)"', cd)
+            if m_fn:
+                filename = m_fn.group(1)
+            else:
+                m_fn_bare = re.search(r'filename=([^; ]+)', cd)
+                if m_fn_bare:
+                    filename = m_fn_bare.group(1).strip('"')
+
+        if filename:
+            try:
+                candidate = filename.encode('latin1').decode('utf-8')
+                if any(ord(c) > 127 for c in candidate):
+                    filename = candidate
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                pass
 
         is_file = (filename is not None and len(filename) > 0)
 
@@ -933,13 +956,26 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             )
             return
 
-        try:
-            file_size = os.path.getsize(target_path)
-            os.remove(target_path)
-            db_service.log_event("file_deleted", client_ip, filename=filename, file_size=file_size, status="info")
-            self.send_json({"success": True, "message": f"Deleted {filename}", "deleted": filename})
-        except Exception as e:
-            self.send_error_json(f"Failed to delete file: {e}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
+        # Attempt deletion with retry on Windows (handles transient file locks)
+        deleted = False
+        last_err = None
+        for attempt in range(5):
+            try:
+                file_size = os.path.getsize(target_path)
+                os.remove(target_path)
+                deleted = True
+                db_service.log_event("file_deleted", client_ip, filename=filename, file_size=file_size, status="info")
+                self.send_json({"success": True, "message": f"Deleted {filename}", "deleted": filename})
+                break
+            except (PermissionError, OSError) as e:
+                last_err = e
+                time.sleep(0.1)
+            except Exception as e:
+                last_err = e
+                break
+
+        if not deleted:
+            self.send_error_json(f"Failed to delete file: {last_err}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_rename(self):
         client_ip = self.get_client_ip()

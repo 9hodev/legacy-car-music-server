@@ -236,6 +236,67 @@ def run_tests():
             assert resp.status == 200
             print("  -> Cleaned up 100MB test file OK")
 
+        # 12. Test Thai Unicode Filename Upload, Listing, and Download
+        print("Testing Thai Unicode Filename Upload ...")
+        thai_song_name = "Bell Supol - ตอบได้ไหมว่า...ได้ไหม (SPOTISAVER).mp3"
+        thai_audio_data = b"ID3\x03\x00\x00\x00\x00\x00\x00" + (b"T" * 1024)
+        boundary_thai = "---------------------------BoundaryThaiTest"
+        thai_body_prefix = (
+            f"--{boundary_thai}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="{thai_song_name}"\r\n'
+            f'Content-Type: audio/mpeg\r\n\r\n'
+        ).encode('utf-8')
+        thai_body_suffix = f"\r\n--{boundary_thai}--\r\n".encode('utf-8')
+        full_thai_body = thai_body_prefix + thai_audio_data + thai_body_suffix
+
+        upload_thai_req = urllib.request.Request(
+            f"{BASE_URL}/api/upload",
+            data=full_thai_body,
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary_thai}",
+                "Content-Length": str(len(full_thai_body))
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(upload_thai_req) as resp:
+            assert resp.status == 200
+            resp_data = json.loads(resp.read().decode('utf-8'))
+            assert resp_data["success"] is True
+            uploaded_name = resp_data["files"][0]["name"]
+            assert "à¸" not in uploaded_name, f"Mojibake detected in uploaded name: {uploaded_name}"
+            assert "ตอบได้ไหม" in uploaded_name
+            print("  -> Thai filename uploaded without mojibake:", uploaded_name)
+
+        # Verify Thai song in /api/files
+        req_files = urllib.request.urlopen(f"{BASE_URL}/api/files")
+        files_list = json.loads(req_files.read().decode('utf-8'))["files"]
+        assert any("ตอบได้ไหม" in f["name"] for f in files_list)
+        print("  -> Thai filename verified in /api/files!")
+
+        # Verify Thai song download URL
+        encoded_dl_url = f"{BASE_URL}/download/{urllib.parse.quote(uploaded_name)}"
+        with urllib.request.urlopen(encoded_dl_url) as dl_resp:
+            assert dl_resp.status == 200
+            assert len(dl_resp.read()) == len(thai_audio_data)
+            print("  -> Thai song download verified!")
+
+        # Clean up Thai test file
+        time.sleep(0.2)
+        del_thai_body = json.dumps({"filename": uploaded_name}).encode('utf-8')
+        del_thai_req = urllib.request.Request(
+            f"{BASE_URL}/api/delete",
+            data=del_thai_body,
+            headers={"Content-Type": "application/json", "Content-Length": str(len(del_thai_body))},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(del_thai_req) as resp:
+                assert resp.status == 200
+                print("  -> Cleaned up Thai test file OK")
+        except urllib.error.HTTPError as e:
+            print("Delete failed with:", e.code, e.read().decode('utf-8'))
+            raise
+
         print("\n==========================================")
         print(">>> ALL INTEGRATION TESTS PASSED 100%! <<<")
         print("==========================================")
