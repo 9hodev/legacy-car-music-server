@@ -1,0 +1,6 @@
+{
+  "server_port": 8000,
+  "admin_pin": "8888",
+  "admin_password": "admin",
+  "comment": "Copy this file to config.json and customize your PIN and password. config.json is ignored by git."
+}

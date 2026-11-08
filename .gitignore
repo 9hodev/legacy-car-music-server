@@ -8,3 +8,6 @@ data/*
 !data/.gitkeep
 music/*
 !music/.gitkeep
+config.json
+*.local.json
+.env

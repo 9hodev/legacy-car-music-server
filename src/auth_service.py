@@ -33,18 +33,23 @@ class AuthService:
     def _init_admin_credentials(self):
         conn = self.db_service.get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM admin_auth WHERE id = 1")
+        cur.execute("SELECT salt FROM admin_auth WHERE id = 1")
         row = cur.fetchone()
 
-        if not row:
-            salt = os.urandom(16).hex()
-            pwd_hash = self._hash_credential(self.default_password, salt)
-            pin_hash = self._hash_credential(self.default_pin, salt)
-            with conn:
-                conn.execute("""
-                INSERT INTO admin_auth (id, salt, password_hash, pin_hash, updated_at)
-                VALUES (1, ?, ?, ?, ?)
-                """, (salt, pwd_hash, pin_hash, time.time()))
+        salt = row["salt"] if row else os.urandom(16).hex()
+        pwd_hash = self._hash_credential(self.default_password, salt)
+        pin_hash = self._hash_credential(self.default_pin, salt)
+
+        with conn:
+            conn.execute("""
+            INSERT INTO admin_auth (id, salt, password_hash, pin_hash, updated_at)
+            VALUES (1, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                salt = excluded.salt,
+                password_hash = excluded.password_hash,
+                pin_hash = excluded.pin_hash,
+                updated_at = excluded.updated_at
+            """, (salt, pwd_hash, pin_hash, time.time()))
 
     def is_rate_limited(self, client_ip):
         """Check if client IP has exceeded maximum failed attempts (5 in 5 mins)."""

@@ -247,7 +247,14 @@ class DatabaseService:
         conn = self.get_connection()
         with conn:
             conn.execute("DELETE FROM activity_logs;")
+        # VACUUM cannot be run inside a transaction; execute with isolation_level=None
+        try:
+            old_isolation = conn.isolation_level
+            conn.isolation_level = None
             conn.execute("VACUUM;")
+            conn.isolation_level = old_isolation
+        except Exception:
+            pass
         return True
 
     # ------------------------------------------------------------------

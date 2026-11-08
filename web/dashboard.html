@@ -9,22 +9,48 @@
 <body class="admin-body">
 
   <div class="admin-container dashboard-container">
-    <!-- Header -->
-    <header class="admin-header">
-      <div class="header-brand">
-        <div class="logo-icon">&#128225;</div>
-        <div>
-          <h1>Network &amp; Device Monitor</h1>
-          <p class="subtitle">Real-time Connections, Device Registry, Active Transfers &amp; Activity Logs</p>
+    <!-- Lock Screen (Displayed by default until authenticated) -->
+    <div id="dashboard-lock-view" class="lock-screen-container">
+      <div class="lock-screen-card">
+        <div class="lock-screen-icon">&#128274;</div>
+        <h2 class="lock-screen-title">Admin Dashboard Protected</h2>
+        <p class="lock-screen-desc">
+          This dashboard contains sensitive real-time network traffic, connected device lists, and server controls. Please enter your Admin PIN or Password to unlock.
+        </p>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <input type="password" id="lock-secret-input" class="admin-input" placeholder="Admin PIN or Password" onkeydown="if(event.key==='Enter')submitLockAuth()">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="submitLockAuth()">Unlock Dashboard</button>
+        <div id="lock-error-msg" class="alert alert-error" style="display: none; margin-top: 16px;"></div>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--bg-border); display: flex; justify-content: center; gap: 14px; font-size: 13px;">
+          <a href="/" style="color: var(--text-muted); text-decoration: none;">&#128663; Car View</a>
+          <span style="color: var(--bg-border);">&bull;</span>
+          <a href="/admin" style="color: var(--text-muted); text-decoration: none;">&#128193; Music Admin</a>
+          <span style="color: var(--bg-border);">&bull;</span>
+          <a href="/studio" style="color: var(--text-muted); text-decoration: none;">&#127911; Audio Studio</a>
         </div>
       </div>
-      <div class="header-actions">
-        <a href="/admin" class="btn btn-secondary">&#128193; Music Admin</a>
-        <a href="/studio" class="btn btn-studio">&#127911; Audio Studio</a>
-        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Car View</a>
-        <button id="btn-auth-toggle" class="btn btn-secondary" onclick="openAuthModal()">&#128274; Admin Login</button>
-      </div>
-    </header>
+    </div>
+
+    <!-- Authenticated Dashboard View (Hidden until authenticated) -->
+    <div id="dashboard-content-view" style="display: none;">
+      <!-- Header -->
+      <header class="admin-header">
+        <div class="header-brand">
+          <div class="logo-icon">&#128225;</div>
+          <div>
+            <h1>Network &amp; Device Monitor</h1>
+            <p class="subtitle">Real-time Connections, Device Registry, Active Transfers &amp; Activity Logs</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <a href="/admin" class="btn btn-secondary">&#128193; Music Admin</a>
+          <a href="/studio" class="btn btn-studio">&#127911; Audio Studio</a>
+          <a href="/" class="btn btn-secondary" target="_blank">&#128663; Car View</a>
+          <button id="btn-auth-toggle" class="btn btn-danger" onclick="logoutAdmin()">&#128274; Logout Admin</button>
+        </div>
+      </header>
 
     <!-- SECTION A: Network Overview Cards -->
     <section class="overview-grid">
@@ -236,9 +262,10 @@
         <strong>Security &amp; Network Monitoring:</strong> Logs are stored in local SQLite database with write-ahead logging (WAL). Client isolation on Wi-Fi Hotspots may prevent devices from communicating with one another.
       </div>
     </footer>
-  </div>
+    </div> <!-- Close #dashboard-content-view -->
+  </div> <!-- Close .dashboard-container -->
 
-  <!-- Admin Auth Modal -->
+  <!-- Admin Auth Modal (for action re-authentication if needed) -->
   <div id="auth-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-box" style="max-width: 420px;">
       <div class="modal-header">
@@ -246,7 +273,7 @@
         <button class="modal-close" onclick="closeAuthModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-label">Enter Admin PIN (Default: <code>8888</code>) or Password (<code>admin</code>):</p>
+        <p class="modal-label">Enter Admin PIN or Password:</p>
         <div class="form-group">
           <input type="password" id="auth-secret-input" class="admin-input" placeholder="PIN or Password" onkeydown="if(event.key==='Enter')submitAuth()">
         </div>

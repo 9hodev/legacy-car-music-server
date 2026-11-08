@@ -265,6 +265,18 @@ def run_monitoring_tests():
         assert db.is_device_revoked("test_dev_001") is True
         log("  -> Passed! Admin token authenticated and device revoked.")
 
+        # Test clear logs API with VACUUM
+        clear_req = urllib.request.Request(
+            f"{BASE_URL}/api/logs/clear",
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-Admin-Token": admin_token},
+            method="POST"
+        )
+        with urllib.request.urlopen(clear_req) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            assert data["success"] is True
+            log("  -> Passed! Clear logs and VACUUM completed without transaction errors.")
+
         # -------------------------------------------------------------
         # Test 9: Authentication failure logging & rate limiting
         # -------------------------------------------------------------

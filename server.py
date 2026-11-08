@@ -63,6 +63,67 @@ MIME_TYPES = {
 os.makedirs(MUSIC_DIR, exist_ok=True)
 
 # ----------------------------------------------------------------------
+# Server Configuration Loader
+# ----------------------------------------------------------------------
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+DATA_CONFIG_PATH = os.path.join(BASE_DIR, "data", "config.json")
+
+def load_server_config():
+    """
+    Load configuration with precedence:
+    1. config.json in root (gitignored)
+    2. data/config.json (gitignored)
+    3. Environment variables (ADMIN_PIN, ADMIN_PASSWORD, LOCAL_MUSIC_PORT)
+    """
+    default_config = {
+        "server_port": DEFAULT_PORT,
+        "admin_pin": "8888",
+        "admin_password": "admin"
+    }
+    cfg = dict(default_config)
+    config_file_found = False
+
+    if os.path.isfile(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg.update(json.load(f))
+                config_file_found = True
+        except Exception as e:
+            print(f"[Config] Error reading {CONFIG_PATH}: {e}")
+    elif os.path.isfile(DATA_CONFIG_PATH):
+        try:
+            with open(DATA_CONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg.update(json.load(f))
+                config_file_found = True
+        except Exception as e:
+            print(f"[Config] Error reading {DATA_CONFIG_PATH}: {e}")
+
+    # Generate initial config.json if not present
+    if not config_file_found:
+        try:
+            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(default_config, f, indent=2)
+            print(" [Security] Created config.json for admin settings (Ignored by Git)")
+        except Exception:
+            pass
+
+    # Environment variables overrides
+    if os.environ.get("ADMIN_PIN"):
+        cfg["admin_pin"] = str(os.environ["ADMIN_PIN"])
+    if os.environ.get("ADMIN_PASSWORD"):
+        cfg["admin_password"] = str(os.environ["ADMIN_PASSWORD"])
+    if os.environ.get("LOCAL_MUSIC_PORT"):
+        try:
+            cfg["server_port"] = int(os.environ["LOCAL_MUSIC_PORT"])
+        except ValueError:
+            pass
+
+    return cfg
+
+SERVER_CONFIG = load_server_config()
+DEFAULT_PORT = SERVER_CONFIG.get("server_port", DEFAULT_PORT)
+
+# ----------------------------------------------------------------------
 # System Services Initialization
 # ----------------------------------------------------------------------
 SERVER_START_TIME = time.time()
@@ -72,7 +133,11 @@ db_service = DatabaseService()
 db_service.start_session(SERVER_SESSION_ID)
 db_service.log_event("server_started", "127.0.0.1", status="info")
 
-auth_service = AuthService(db_service, default_pin="8888", default_password="admin")
+auth_service = AuthService(
+    db_service,
+    default_pin=str(SERVER_CONFIG.get("admin_pin", "8888")),
+    default_password=str(SERVER_CONFIG.get("admin_password", "admin"))
+)
 monitor_service = MonitorService(db_service, SERVER_START_TIME)
 audio_service = AudioService(MUSIC_DIR, max_workers=2, db_service=db_service)
 
@@ -1220,9 +1285,9 @@ def print_banner(port, interfaces):
         print(f"   * {desc.ljust(18)}: {ip}{mark}")
     print()
     print(" [Security & Access Notice]")
-    print(" - Admin PIN: 8888 | Password: admin (changeable in DB)")
-    print(" - Car View ('/') is 100% Zero-JS and requires no authentication.")
-    print(" - Private Wi-Fi Hotspot only. DO NOT expose port 8000 to public internet.")
+    print(" - Admin Auth         : Protected (Credentials configured in config.json)")
+    print(" - Car View ('/')     : 100% Zero-JS and requires no authentication.")
+    print(" - Wi-Fi Hotspot only : DO NOT expose this port to the public internet.")
     print(border)
     sys.stdout.flush()
 

@@ -23,11 +23,13 @@
    - **Export CSV:** ดาวน์โหลดบันทึกทั้งหมดเป็นไฟล์ CSV ได้ทันที
    - ข้อมูลบันทึกและรายการอุปกรณ์คงอยู่ถาวรแม้ปิดเปิดเซิร์ฟเวอร์ใหม่ (Survives Server Restarts)
 4. **Device Security & Admin Authentication:**
-   - ระบบล็อกอิน Admin ด้วย PIN (ค่าเริ่มต้น: `8888`) หรือ Password (`admin`)
+   - ระบบล็อกอิน Admin ด้วย PIN หรือ Password ที่กำหนดค่าได้อย่างง่ายดายและปลอดภัยผ่าน `config.json` (หรือ Environment Variables: `ADMIN_PIN`, `ADMIN_PASSWORD`)
+   - **Safe for Public GitHub:** ไฟล์ `config.json` ที่เก็บรหัสผ่านจริงถูกระบุไว้ใน `.gitignore` จึงไม่มีการรั่วไหลขึ้น GitHub แน่นอน โดยมี `config.example.json` เป็นแม่แบบให้ใช้งาน
+   - **Dashboard Lock Screen:** หน้า `/dashboard` ถูกล็อกไว้ด้วยหน้าต่างยืนยันตัวตน Admin โดยอัตโนมัติ จะไม่แสดงข้อมูลเครือข่าย อุปกรณ์ หรือประวัติ Log จนกว่าจะกรอกรหัสผ่านถูกต้อง
    - รหัสผ่านถูกเข้ารหัสด้วย PBKDF2-HMAC-SHA256 (100,000 rounds) ร่วมกับ Salt แบบสุ่ม
    - เปรียบเทียบรหัสผ่านและโทเค็นด้วย Constant-time comparison (`hmac.compare_digest`) ป้องกัน Timing Attacks
    - **Rate Limiting:** จำกัดการล็อกอินผิดพลาดสูงสุด 5 ครั้งต่อ 5 นาที หากเกินจะบล็อก IP นั้นเป็นเวลา 60 วินาที
-   - ไม่บันทึกรหัสผ่านหรือโทเค็นเป็น Plaintext ใน Log
+   - ไม่บันทึกรหัสผ่านหรือโทเค็นเป็น Plaintext ใน Log หรือหน้าเว็บเด็ดขาด
 5. **รักษาความเข้ากันได้ 100% กับจอรถยนต์ Android รุ่นเก่า (Android 4.4 – 8.0):**
    - หน้าจอรถยนต์ (`/`) และการดาวน์โหลด (`/download/...`) เข้าถึงได้โดยตรง ไม่ต้องล็อกอิน ไม่ต้องใช้ JavaScript
    - รองรับการ Resume การดาวน์โหลดผ่าน HTTP Range Header
@@ -104,7 +106,7 @@ python3 server.py
 - `GET /api/logs`: ดึงรายการ Log แบบแบ่งหน้าพร้อมตัวกรอง (`?page=1&limit=20&search=...&event_type=...`)
 - `GET /api/logs/export`: ส่งออก Log เป็นไฟล์ `.csv`
 - `POST /api/logs/clear`: ล้างประวัติ Log ทั้งหมด (ต้องใช้ Admin Auth)
-- `POST /api/auth/login`: ตรวจสอบ PIN/Password (`{"secret": "8888"}`) รับ Session Token
+- `POST /api/auth/login`: ตรวจสอบ PIN/Password (`{"secret": "your_pin_or_password"}`) รับ Session Token
 - `POST /api/auth/logout`: ออกจากระบบเซสชันแอดมิน
 - `GET /api/auth/status`: ตรวจสอบสถานะการยืนยันตัวตนในปัจจุบัน
 

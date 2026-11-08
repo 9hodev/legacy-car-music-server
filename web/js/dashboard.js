@@ -45,18 +45,15 @@ var btnLogout = document.getElementById("btn-logout");
 var serverUrlDisplay = document.getElementById("server-url-display");
 var toast = document.getElementById("toast");
 
+// Lock View Elements
+var lockView = document.getElementById("dashboard-lock-view");
+var contentView = document.getElementById("dashboard-content-view");
+var lockSecretInput = document.getElementById("lock-secret-input");
+var lockErrorMsg = document.getElementById("lock-error-msg");
+
 document.addEventListener("DOMContentLoaded", function () {
   initDeviceRegistration();
-  loadStats();
-  loadDevices();
-  loadLogs(1);
   checkAuthStatus();
-
-  // Periodic stats refresh (every 2.5s)
-  statsTimer = setInterval(loadStats, 2500);
-
-  // Client heartbeat (every 12s)
-  heartbeatTimer = setInterval(sendHeartbeat, 12000);
 });
 
 // ----------------------------------------------------------------------
@@ -116,6 +113,10 @@ function loadStats() {
     xhr.setRequestHeader("X-Admin-Token", currentSessionToken);
   }
   xhr.onload = function () {
+    if (xhr.status === 401) {
+      showLockScreen();
+      return;
+    }
     if (xhr.status >= 200 && xhr.status < 300) {
       try {
         var resp = JSON.parse(xhr.responseText);
@@ -196,7 +197,14 @@ function renderLiveTransfers(transfers) {
 function loadDevices() {
   var xhr = new XMLHttpRequest();
   xhr.open("GET", "/api/devices", true);
+  if (currentSessionToken) {
+    xhr.setRequestHeader("X-Admin-Token", currentSessionToken);
+  }
   xhr.onload = function () {
+    if (xhr.status === 401) {
+      showLockScreen();
+      return;
+    }
     if (xhr.status >= 200 && xhr.status < 300) {
       try {
         var resp = JSON.parse(xhr.responseText);
@@ -305,7 +313,14 @@ function loadLogs(page) {
 
   var xhr = new XMLHttpRequest();
   xhr.open("GET", url, true);
+  if (currentSessionToken) {
+    xhr.setRequestHeader("X-Admin-Token", currentSessionToken);
+  }
   xhr.onload = function () {
+    if (xhr.status === 401) {
+      showLockScreen();
+      return;
+    }
     if (xhr.status >= 200 && xhr.status < 300) {
       try {
         var resp = JSON.parse(xhr.responseText);
@@ -391,7 +406,7 @@ function confirmClearLogs() {
 }
 
 // ----------------------------------------------------------------------
-// Authentication Handling
+// Authentication Handling & Dashboard Gate
 // ----------------------------------------------------------------------
 function checkAuthStatus() {
   var xhr = new XMLHttpRequest();
@@ -403,16 +418,103 @@ function checkAuthStatus() {
     if (xhr.status >= 200 && xhr.status < 300) {
       try {
         var resp = JSON.parse(xhr.responseText);
-        updateAuthUI(resp.authenticated);
-      } catch (e) {}
+        if (resp.authenticated) {
+          showDashboardContent();
+        } else {
+          showLockScreen();
+        }
+      } catch (e) {
+        showLockScreen();
+      }
+    } else {
+      showLockScreen();
     }
+  };
+  xhr.onerror = function () {
+    showLockScreen();
   };
   xhr.send();
 }
 
+function showDashboardContent() {
+  if (lockView) lockView.style.display = "none";
+  if (contentView) contentView.style.display = "block";
+  updateAuthUI(true);
+
+  loadStats();
+  loadDevices();
+  loadLogs(1);
+
+  if (!statsTimer) {
+    statsTimer = setInterval(loadStats, 2500);
+  }
+  if (!heartbeatTimer) {
+    heartbeatTimer = setInterval(sendHeartbeat, 12000);
+  }
+}
+
+function showLockScreen() {
+  if (statsTimer) {
+    clearInterval(statsTimer);
+    statsTimer = null;
+  }
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  if (contentView) contentView.style.display = "none";
+  if (lockView) lockView.style.display = "flex";
+  if (lockSecretInput) {
+    lockSecretInput.value = "";
+    lockSecretInput.focus();
+  }
+  if (lockErrorMsg) lockErrorMsg.style.display = "none";
+  updateAuthUI(false);
+}
+
+function submitLockAuth() {
+  var secret = lockSecretInput ? lockSecretInput.value.trim() : "";
+  if (!secret) return;
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/auth/login", true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.onload = function () {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.success && resp.token) {
+          currentSessionToken = resp.token;
+          localStorage.setItem("admin_session_token", resp.token);
+          showToast("Dashboard unlocked successfully!");
+          showDashboardContent();
+        } else {
+          showLockError(resp.error || "Authentication failed.");
+        }
+      } catch (e) {
+        showLockError("Error parsing server response.");
+      }
+    } else {
+      var err = "Authentication failed (Status " + xhr.status + ")";
+      try { err = JSON.parse(xhr.responseText).error || err; } catch (e) {}
+      showLockError(err);
+    }
+  };
+  xhr.onerror = function () {
+    showLockError("Network connection error.");
+  };
+  xhr.send(JSON.stringify({ secret: secret }));
+}
+
+function showLockError(msg) {
+  if (!lockErrorMsg) return;
+  lockErrorMsg.textContent = msg;
+  lockErrorMsg.style.display = "block";
+}
+
 function updateAuthUI(isAuth) {
   if (isAuth) {
-    if (btnAuthToggle) btnAuthToggle.textContent = "Admin Active (Logout)";
+    if (btnAuthToggle) btnAuthToggle.textContent = "Logout Admin";
     if (btnAuthToggle) btnAuthToggle.onclick = logoutAdmin;
     if (authStatusDesc) authStatusDesc.innerHTML = "<strong style='color:#00e676;'>Authenticated Admin Session</strong>";
     if (btnLoginOpen) btnLoginOpen.style.display = "none";
@@ -420,7 +522,7 @@ function updateAuthUI(isAuth) {
   } else {
     if (btnAuthToggle) btnAuthToggle.textContent = "Admin Login";
     if (btnAuthToggle) btnAuthToggle.onclick = openAuthModal;
-    if (authStatusDesc) authStatusDesc.innerHTML = "<span class='text-muted'>Read-only Admin Mode</span>";
+    if (authStatusDesc) authStatusDesc.innerHTML = "<span class='text-muted'>Locked (Authentication required)</span>";
     if (btnLoginOpen) btnLoginOpen.style.display = "inline-flex";
     if (btnLogout) btnLogout.style.display = "none";
   }
@@ -453,7 +555,7 @@ function submitAuth() {
           localStorage.setItem("admin_session_token", resp.token);
           closeAuthModal();
           showToast("Admin authenticated successfully!");
-          updateAuthUI(true);
+          showDashboardContent();
         } else {
           showAuthError(resp.error || "Authentication failed.");
         }
@@ -487,7 +589,7 @@ function logoutAdmin() {
     currentSessionToken = "";
     localStorage.removeItem("admin_session_token");
     showToast("Logged out from Admin session.");
-    updateAuthUI(false);
+    showLockScreen();
   };
   xhr.send();
 }
