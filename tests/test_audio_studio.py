@@ -20,11 +20,19 @@ import json
 import urllib.request
 import urllib.parse
 import subprocess
-from audio_service import find_binary
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
+from src.audio_service import find_binary
+
+SERVER_SCRIPT = os.path.join(ROOT_DIR, "server.py")
+MUSIC_DIR = os.path.join(ROOT_DIR, "music")
 TEST_PORT = 8998
 BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
-MUSIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music")
 
 FFMPEG_BIN = find_binary("ffmpeg")
 
@@ -93,7 +101,7 @@ def run_acceptance_tests():
     cleanup_test_artifacts()
 
     # Launch server with DEVNULL for pipe to prevent buffer stalls
-    proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen([sys.executable, SERVER_SCRIPT, str(TEST_PORT)], cwd=ROOT_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
 
     try:

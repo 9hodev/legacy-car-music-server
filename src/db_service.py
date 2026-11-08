@@ -12,7 +12,10 @@ import threading
 import csv
 import io
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_server.db")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "music_server.db")
 
 class DatabaseService:
     def __init__(self, db_path=DB_PATH):

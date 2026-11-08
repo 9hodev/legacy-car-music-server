@@ -204,3 +204,4 @@ class MonitorService:
             "session_downloaded_bytes": self.session_downloaded_bytes,
             "active_transfers": active_transfers_list
         }
+

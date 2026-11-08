@@ -4,5 +4,7 @@ __pycache__/
 *.db
 *.db-wal
 *.db-shm
+data/*
+!data/.gitkeep
 music/*
 !music/.gitkeep

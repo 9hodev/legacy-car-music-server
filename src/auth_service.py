@@ -136,3 +136,4 @@ class AuthService:
     def revoke_session(self, session_token):
         with self.session_lock:
             self.sessions.pop(session_token, None)
+

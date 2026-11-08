@@ -20,18 +20,26 @@ import time
 import html
 import uuid
 
-from audio_service import AudioService
-from audio_convert import SUPPORTED_INPUT_EXTS, SUPPORTED_OUTPUT_EXTS
-from db_service import DatabaseService
-from auth_service import AuthService
-from monitor_service import MonitorService
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(BASE_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from src.audio_service import AudioService
+from src.audio_convert import SUPPORTED_INPUT_EXTS, SUPPORTED_OUTPUT_EXTS
+from src.db_service import DatabaseService
+from src.auth_service import AuthService
+from src.monitor_service import MonitorService
 
 # ----------------------------------------------------------------------
 # Configuration
 # ----------------------------------------------------------------------
 DEFAULT_PORT = 8000
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MUSIC_DIR = os.path.join(BASE_DIR, "music")
+WEB_DIR = os.path.join(BASE_DIR, "web")
+DATA_DIR = os.path.join(BASE_DIR, "data")
 ALLOWED_EXTENSIONS = {".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus"}
 
 MIME_TYPES = {
@@ -386,7 +394,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             monitor_service.on_connection_end(self.get_client_ip())
 
     def render_car_index(self):
-        index_path = os.path.join(BASE_DIR, "index.html")
+        index_path = os.path.join(WEB_DIR, "index.html")
         if not os.path.isfile(index_path):
             self.send_error(HTTPStatus.NOT_FOUND, "index.html not found")
             monitor_service.on_connection_end(self.get_client_ip())
@@ -544,19 +552,19 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
         if path in ["/", "/index.html"]:
             self.render_car_index()
         elif path in ["/admin", "/admin.html"]:
-            self.serve_static_file(os.path.join(BASE_DIR, "admin.html"), "text/html; charset=utf-8")
+            self.serve_static_file(os.path.join(WEB_DIR, "admin.html"), "text/html; charset=utf-8")
         elif path in ["/studio", "/studio.html"]:
-            self.serve_static_file(os.path.join(BASE_DIR, "studio.html"), "text/html; charset=utf-8")
+            self.serve_static_file(os.path.join(WEB_DIR, "studio.html"), "text/html; charset=utf-8")
         elif path in ["/dashboard", "/dashboard.html"]:
-            self.serve_static_file(os.path.join(BASE_DIR, "dashboard.html"), "text/html; charset=utf-8")
-        elif path == "/style.css":
-            self.serve_static_file(os.path.join(BASE_DIR, "style.css"), "text/css; charset=utf-8")
-        elif path == "/app.js":
-            self.serve_static_file(os.path.join(BASE_DIR, "app.js"), "application/javascript; charset=utf-8")
-        elif path == "/studio.js":
-            self.serve_static_file(os.path.join(BASE_DIR, "studio.js"), "application/javascript; charset=utf-8")
-        elif path == "/dashboard.js":
-            self.serve_static_file(os.path.join(BASE_DIR, "dashboard.js"), "application/javascript; charset=utf-8")
+            self.serve_static_file(os.path.join(WEB_DIR, "dashboard.html"), "text/html; charset=utf-8")
+        elif path in ["/style.css", "/css/style.css"]:
+            self.serve_static_file(os.path.join(WEB_DIR, "css", "style.css"), "text/css; charset=utf-8")
+        elif path in ["/app.js", "/js/app.js"]:
+            self.serve_static_file(os.path.join(WEB_DIR, "js", "app.js"), "application/javascript; charset=utf-8")
+        elif path in ["/studio.js", "/js/studio.js"]:
+            self.serve_static_file(os.path.join(WEB_DIR, "js", "studio.js"), "application/javascript; charset=utf-8")
+        elif path in ["/dashboard.js", "/js/dashboard.js"]:
+            self.serve_static_file(os.path.join(WEB_DIR, "js", "dashboard.js"), "application/javascript; charset=utf-8")
         elif path == "/api/files":
             query = urllib.parse.parse_qs(parsed.query)
             include_meta = "meta" in query and query["meta"][0] in ["1", "true"]

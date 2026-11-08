@@ -14,13 +14,22 @@ import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from audio_convert import (
-    SUPPORTED_INPUT_EXTS,
-    SUPPORTED_OUTPUT_EXTS,
-    is_lossy_transcode,
-    build_convert_command
-)
-from audio_merge import build_merge_command
+try:
+    from .audio_convert import (
+        SUPPORTED_INPUT_EXTS,
+        SUPPORTED_OUTPUT_EXTS,
+        is_lossy_transcode,
+        build_convert_command
+    )
+    from .audio_merge import build_merge_command
+except ImportError:
+    from audio_convert import (
+        SUPPORTED_INPUT_EXTS,
+        SUPPORTED_OUTPUT_EXTS,
+        is_lossy_transcode,
+        build_convert_command
+    )
+    from audio_merge import build_merge_command
 
 
 def find_binary(name):

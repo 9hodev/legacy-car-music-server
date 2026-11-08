@@ -4,14 +4,24 @@ Constructs FFmpeg filter_complex chains to cleanly concatenate and crossfade mix
 """
 
 import os
-from audio_convert import (
-    SUPPORTED_INPUT_EXTS,
-    SUPPORTED_OUTPUT_EXTS,
-    LOSSY_EXTS,
-    CODEC_MAP,
-    VALID_BITRATES,
-    VALID_SAMPLE_RATES
-)
+try:
+    from .audio_convert import (
+        SUPPORTED_INPUT_EXTS,
+        SUPPORTED_OUTPUT_EXTS,
+        LOSSY_EXTS,
+        CODEC_MAP,
+        VALID_BITRATES,
+        VALID_SAMPLE_RATES
+    )
+except ImportError:
+    from audio_convert import (
+        SUPPORTED_INPUT_EXTS,
+        SUPPORTED_OUTPUT_EXTS,
+        LOSSY_EXTS,
+        CODEC_MAP,
+        VALID_BITRATES,
+        VALID_SAMPLE_RATES
+    )
 
 
 def build_merge_command(ffmpeg_bin, input_paths, output_path, options, track_durations=None):

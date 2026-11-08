@@ -120,20 +120,75 @@ python3 server.py
 
 ---
 
+## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+
+โปรเจกต์ได้รับการจัดระเบียบตามมาตรฐาน Clean Architecture แยกเป็นโมดูลชัดเจน:
+
+```text
+LocalShare/
+├── server.py                   # Main HTTP Server Entry Point (Zero-dependency)
+├── run_tests.py                # Master Automated Test Runner (All suites)
+├── README.md                   # Project Documentation
+├── requirements.txt            # Python Dependencies
+├── .gitignore                  # Git Ignore configuration
+│
+├── src/                        # Backend Modules & Core Services
+│   ├── __init__.py
+│   ├── audio_service.py        # Audio Processing Coordinator & Task Queue
+│   ├── audio_convert.py        # FFmpeg Audio Conversion & Optimization Engine
+│   ├── audio_merge.py          # FFmpeg Audio Concatenation & Crossfade Engine
+│   ├── auth_service.py         # PBKDF2 Auth, Constant-Time Compare & Rate Limiting
+│   ├── db_service.py           # SQLite Database Manager (WAL mode & schema)
+│   └── monitor_service.py      # Network Metrics, Device Registry & Activity Tracker
+│
+├── web/                        # Frontend UI Templates & Static Assets
+│   ├── index.html              # Legacy Android Car Download Page (Zero-JS compatible)
+│   ├── admin.html              # Music Upload & File Management Page
+│   ├── studio.html             # Audio Merge & Crossfade Studio Page
+│   ├── dashboard.html          # Network Dashboard & Device Monitoring Page
+│   ├── css/
+│   │   └── style.css           # Global Dark Theme Stylesheet
+│   └── js/
+│       ├── app.js              # Admin & Upload Logic (Streaming Chunked Upload)
+│       ├── studio.js           # Audio Studio Logic (Drag & Drop track ordering)
+│       └── dashboard.js        # Network Dashboard Real-time Polling & Log UI
+│
+├── data/                       # Persistent Data Storage
+│   └── music_server.db         # SQLite Database (survives restarts)
+│
+├── music/                      # Music Files Repository (Uploaded & converted audio)
+│
+└── tests/                      # Automated Test Suites
+    ├── __init__.py
+    ├── test_integration.py     # Base HTTP Server & Streaming Upload/Download Tests
+    ├── test_audio_studio.py    # FFmpeg Convert & Merge Studio Tests (10 tests)
+    └── test_dashboard_monitoring.py # Network Dashboard & Device Monitoring Tests (11 tests)
+```
+
+---
+
 ## 🧪 การทดสอบระบบ (Automated Tests)
+
+คุณสามารถรันการทดสอบทั้งหมดผ่าน **Master Test Runner** คำสั่งเดียว:
+
+```bash
+python run_tests.py
+```
+
+หรือเลือกรันเฉพาะชุดทดสอบที่ต้องการ:
 
 1. **ชุดทดสอบแดชบอร์ดและเครือข่าย (11 การทดสอบ):**
    ```bash
-   python3 test_dashboard_monitoring.py
+   python tests/test_dashboard_monitoring.py
    ```
    *(ทดสอบการเชื่อมต่อพร้อมกัน, Device Heartbeat, Offline Timeout, Log บันทึก Upload/Download, Interrupted Transfer, Server Restart Persistence, Auth Rate Limiting, และความเข้ากันได้กับจอรถ)*
 
 2. **ชุดทดสอบการประมวลผลเสียง FFmpeg (10 การทดสอบ):**
    ```bash
-   python3 test_audio_studio.py
+   python tests/test_audio_studio.py
    ```
 
 3. **ชุดทดสอบ Integration พื้นฐาน:**
    ```bash
-   python3 run_integration_test.py
+   python tests/test_integration.py
    ```

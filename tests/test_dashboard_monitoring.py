@@ -23,11 +23,19 @@ import urllib.parse
 import urllib.error
 import subprocess
 import threading
-from db_service import DatabaseService
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
 
+from src.db_service import DatabaseService
+
+SERVER_SCRIPT = os.path.join(ROOT_DIR, "server.py")
+MUSIC_DIR = os.path.join(ROOT_DIR, "music")
 TEST_PORT = 8997
 BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
-MUSIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music")
 
 def log(msg):
     print(msg, flush=True)
@@ -43,7 +51,7 @@ def run_monitoring_tests():
             except Exception: pass
 
     # Launch server
-    proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen([sys.executable, SERVER_SCRIPT, str(TEST_PORT)], cwd=ROOT_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
 
     try:
@@ -213,7 +221,7 @@ def run_monitoring_tests():
         proc.wait()
 
         # Relaunch
-        proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen([sys.executable, SERVER_SCRIPT, str(TEST_PORT)], cwd=ROOT_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(1.5)
 
         # Check that logs and devices survived the restart

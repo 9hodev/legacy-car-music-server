@@ -7,12 +7,18 @@ import subprocess
 import sys
 import os
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+SERVER_SCRIPT = os.path.join(ROOT_DIR, "server.py")
+MUSIC_DIR = os.path.join(ROOT_DIR, "music")
+
 TEST_PORT = 8999
 BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
 
 def run_tests():
     print(f"Starting server on port {TEST_PORT}...")
-    proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen([sys.executable, SERVER_SCRIPT, str(TEST_PORT)], cwd=ROOT_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
 
     try:
@@ -165,7 +171,7 @@ def run_tests():
             print(f"  -> 100 MB upload streamed successfully in {time.time() - t0:.2f}s! Result:", resp_data)
 
         # Verify size on disk
-        large_disk_path = os.path.join("music", "large_100mb.flac")
+        large_disk_path = os.path.join(MUSIC_DIR, "large_100mb.flac")
         assert os.path.exists(large_disk_path)
         assert os.path.getsize(large_disk_path) == large_size
         print(f"  -> Verified 100 MB file exact disk size: {os.path.getsize(large_disk_path)} bytes!")
