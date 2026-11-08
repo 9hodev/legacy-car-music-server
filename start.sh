@@ -19,3 +19,4 @@ fi
 
 # Run server
 exec "$PYTHON_CMD" server.py
+
