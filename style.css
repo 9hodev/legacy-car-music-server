@@ -1,0 +1,663 @@
+/* ==========================================================================
+   Local Music Drop Server Stylesheet
+   Designed for both Modern Mac Admin View and Legacy Android Head Unit View
+   ========================================================================== */
+
+:root {
+  --bg-dark: #0f1117;
+  --bg-card: #181b22;
+  --bg-card-hover: #222631;
+  --bg-border: #2c3240;
+  --text-main: #f0f3f6;
+  --text-muted: #8b949e;
+  --text-dim: #6e7681;
+  
+  --accent-green: #00e676;
+  --accent-green-hover: #00c853;
+  --accent-green-text: #05200f;
+  
+  --accent-blue: #38bdf8;
+  --accent-blue-hover: #0ea5e9;
+  
+  --accent-red: #f85149;
+  --accent-red-hover: #da3633;
+  
+  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Reset & Box Sizing */
+*, *::before, *::after {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-stack);
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   CAR DOWNLOAD VIEW (index.html) - Optimized for Low-Res Touchscreens
+   ========================================================================== */
+
+.car-body {
+  background-color: #0b0d13;
+  color: #ffffff;
+  padding: 12px;
+}
+
+.car-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Car Header */
+.car-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #161922;
+  border-radius: 12px;
+  border: 1px solid #282f3d;
+  margin-bottom: 12px;
+}
+
+.car-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #38bdf8;
+}
+
+.car-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.badge-count {
+  background-color: #263042;
+  color: #38bdf8;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-left: 6px;
+}
+
+.header-right {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  display: inline-block;
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  touch-action: manipulation;
+}
+
+.btn-refresh {
+  background-color: #2b3345;
+  color: #ffffff;
+}
+
+.btn-refresh:active {
+  background-color: #3b465e;
+}
+
+.btn-admin-link {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px solid #363e52;
+}
+
+.btn-admin-link:active {
+  background-color: #262c3b;
+}
+
+/* Quick Filter */
+.filter-box {
+  margin-bottom: 14px;
+}
+
+.car-input {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 18px;
+  background-color: #181c26;
+  border: 2px solid #2c3445;
+  border-radius: 10px;
+  color: #ffffff;
+  outline: none;
+}
+
+.car-input:focus {
+  border-color: #38bdf8;
+}
+
+/* Car Song List & Cards */
+.song-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.song-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background-color: #171b24;
+  border: 2px solid #262c3b;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.song-info {
+  flex: 1;
+  min-width: 0;
+  padding-right: 18px;
+}
+
+.song-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+.song-size {
+  font-size: 16px;
+  font-weight: 600;
+  color: #a0aec0;
+  margin-top: 6px;
+}
+
+/* Big Touchscreen Download Button */
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  min-height: 56px;
+  padding: 14px 28px;
+  background-color: var(--accent-green);
+  color: var(--accent-green-text);
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 4px 14px rgba(0, 230, 118, 0.35);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.btn-download:hover,
+.btn-download:active {
+  background-color: var(--accent-green-hover);
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(0, 230, 118, 0.5);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  background-color: #171b24;
+  border-radius: 14px;
+  border: 2px dashed #2b3345;
+}
+
+.empty-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin: 0 0 8px 0;
+}
+
+.empty-desc {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.car-footer {
+  text-align: center;
+  margin-top: 24px;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+
+/* ==========================================================================
+   ADMIN / UPLOAD VIEW (admin.html) - Optimized for Mac / Desktop
+   ========================================================================== */
+
+.admin-body {
+  background-color: var(--bg-dark);
+  padding: 24px 16px;
+}
+
+.admin-container {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* Admin Header */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bg-border);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-icon {
+  font-size: 32px;
+  background: linear-gradient(135deg, var(--accent-blue), #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+}
+
+.admin-header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Card Container */
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--bg-border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.card-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.card-header.space-between {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.title-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.btn-primary {
+  background-color: var(--accent-blue);
+  color: #0b1329;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-blue-hover);
+}
+
+.btn-secondary {
+  background-color: #212631;
+  color: var(--text-main);
+  border-color: var(--bg-border);
+}
+
+.btn-secondary:hover {
+  background-color: #2c3342;
+  border-color: #40495d;
+}
+
+.btn-danger {
+  background-color: rgba(248, 81, 73, 0.15);
+  color: #ff7b72;
+  border: 1px solid rgba(248, 81, 73, 0.3);
+}
+
+.btn-danger:hover {
+  background-color: rgba(248, 81, 73, 0.3);
+  color: #ffffff;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  background-color: #212631;
+  color: var(--text-muted);
+  border: 1px solid var(--bg-border);
+}
+
+.badge-primary {
+  background-color: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.badge-secondary {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+/* Drag & Drop Zone */
+.drop-zone {
+  border: 2px dashed #3a4356;
+  border-radius: 12px;
+  padding: 42px 20px;
+  text-align: center;
+  background-color: rgba(24, 27, 34, 0.6);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+  border-color: var(--accent-blue);
+  background-color: rgba(56, 189, 248, 0.05);
+  transform: scale(1.005);
+}
+
+.drop-zone-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  color: var(--accent-blue);
+}
+
+.drop-zone-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.drop-zone-text strong {
+  font-size: 17px;
+  color: var(--text-main);
+}
+
+.drop-zone-text span {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Upload Progress Bar */
+.upload-progress-container {
+  margin-top: 20px;
+  padding: 16px;
+  background-color: #1e232e;
+  border-radius: 8px;
+  border: 1px solid var(--bg-border);
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.progress-title {
+  color: var(--text-main);
+}
+
+.progress-percent {
+  color: var(--accent-blue);
+}
+
+.progress-bar-track {
+  width: 100%;
+  height: 10px;
+  background-color: #101217;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #00e676);
+  transition: width 0.15s ease;
+}
+
+.progress-details {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  text-align: right;
+}
+
+/* Alert Boxes */
+.alert {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-top: 16px;
+  line-height: 1.4;
+}
+
+.alert-success {
+  background-color: rgba(0, 230, 118, 0.15);
+  border: 1px solid rgba(0, 230, 118, 0.4);
+  color: #22c55e;
+}
+
+.alert-error {
+  background-color: rgba(248, 81, 73, 0.15);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  color: #ff7b72;
+}
+
+/* Admin Library Table */
+.search-wrap {
+  min-width: 240px;
+}
+
+.admin-input {
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 14px;
+  background-color: #12141a;
+  border: 1px solid var(--bg-border);
+  border-radius: 6px;
+  color: var(--text-main);
+  outline: none;
+}
+
+.admin-input:focus {
+  border-color: var(--accent-blue);
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+.music-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.music-table th {
+  padding: 12px 16px;
+  background-color: #14171f;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--bg-border);
+}
+
+.music-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #202430;
+  vertical-align: middle;
+}
+
+.music-table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.song-cell-title {
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.song-icon {
+  font-size: 18px;
+  color: var(--accent-blue);
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.table-loading,
+.table-empty {
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--text-muted);
+}
+
+/* Toast Notification */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: #1e232e;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid #363e52;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  font-size: 14px;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: all 0.25s ease;
+  pointer-events: none;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.admin-footer {
+  text-align: center;
+  margin-top: 32px;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.footer-note {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .song-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .btn-download {
+    width: 100%;
+  }
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .header-actions {
+    width: 100%;
+  }
+  .header-actions .btn {
+    flex: 1;
+  }
+  .table-actions {
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Local Music Server - Car Download</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    /* Critical inline styles for older Android WebViews */
+    * { -webkit-box-sizing: border-box; -moz-box-sizing: border-box; box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 12px;
+      background-color: #0f1117;
+      color: #f0f2f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-text-size-adjust: 100%;
+    }
+  </style>
+</head>
+<body class="car-body">
+
+  <div class="car-container">
+    <!-- Header -->
+    <header class="car-header">
+      <div class="header-left">
+        <h1 class="car-title">LOCAL MUSIC SERVER</h1>
+        <div class="car-subtitle">
+          Your Music Library <span class="badge-count"><!-- MUSIC_COUNT_PLACEHOLDER --> songs</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <a href="/" class="btn-action btn-refresh" title="Reload song list">REFRESH</a>
+        <a href="/admin" class="btn-action btn-admin-link" title="Upload new songs">ADMIN</a>
+      </div>
+    </header>
+
+    <!-- Optional Quick Filter for Head Units that support input -->
+    <div class="filter-box">
+      <input type="text" id="car-search" class="car-input" placeholder="Search song name..." onkeyup="filterSongs()">
+    </div>
+
+    <!-- Song List (Injected Server-Side for 100% Zero-JS Compatibility) -->
+    <main id="song-list" class="song-list-container">
+      <!-- MUSIC_ITEMS_PLACEHOLDER -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="car-footer">
+      <p>Local Wi-Fi Hotspot Transfer &bull; No Internet Required</p>
+    </footer>
+  </div>
+
+  <!-- Lightweight, backward-compatible ES3/ES5 script for instant search filter (Safe for Android 4+) -->
+  <script>
+    function filterSongs() {
+      var input = document.getElementById("car-search");
+      if (!input) return;
+      var filter = input.value.toLowerCase();
+      var list = document.getElementById("song-list");
+      if (!list) return;
+      var cards = list.getElementsByClassName("song-card");
+      for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var titleElem = card.getElementsByClassName("song-title")[0];
+        if (titleElem) {
+          var title = (titleElem.textContent || titleElem.innerText || "").toLowerCase();
+          if (title.indexOf(filter) > -1) {
+            card.style.display = "";
+          } else {
+            card.style.display = "none";
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>

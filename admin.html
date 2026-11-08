@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Local Music Drop Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="admin-body">
+
+  <div class="admin-container">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="header-brand">
+        <div class="logo-icon">&#9835;</div>
+        <div>
+          <h1>Music Drop Admin</h1>
+          <p class="subtitle">Upload & Manage Songs for Android Head Unit</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Open Car View</a>
+        <button id="btn-refresh" class="btn btn-secondary" onclick="loadFilesList()">&#8635; Refresh</button>
+      </div>
+    </header>
+
+    <!-- Upload Section -->
+    <section class="card upload-card">
+      <div class="card-header">
+        <h2>Upload Music Files</h2>
+        <span class="badge">Supports: MP3, M4A, AAC, FLAC, WAV, OGG (100MB+)</span>
+      </div>
+
+      <!-- Drop Zone -->
+      <div id="drop-zone" class="drop-zone">
+        <div class="drop-zone-icon">&#128229;</div>
+        <div class="drop-zone-text">
+          <strong>Drag &amp; drop audio files here</strong>
+          <span>or click to browse from your Mac</span>
+        </div>
+        <input type="file" id="file-input" multiple accept=".mp3,.m4a,.aac,.flac,.wav,.ogg" style="display:none;">
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+          Browse Files
+        </button>
+      </div>
+
+      <!-- Upload Progress Container -->
+      <div id="upload-progress-container" class="upload-progress-container" style="display: none;">
+        <div class="progress-info">
+          <span id="upload-status-text" class="progress-title">Uploading...</span>
+          <span id="upload-percentage" class="progress-percent">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div id="upload-progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div id="upload-details" class="progress-details">0 MB / 0 MB</div>
+      </div>
+
+      <!-- Status Alerts -->
+      <div id="alert-box" class="alert" style="display: none;"></div>
+    </section>
+
+    <!-- Music Library Section -->
+    <section class="card library-card">
+      <div class="card-header space-between">
+        <div class="title-with-badge">
+          <h2>Server Music Library</h2>
+          <span id="library-count" class="badge badge-primary">0 songs</span>
+          <span id="library-total-size" class="badge badge-secondary">0 MB</span>
+        </div>
+        <div class="search-wrap">
+          <input type="text" id="admin-search" class="admin-input" placeholder="Filter songs..." oninput="filterAdminList()">
+        </div>
+      </div>
+
+      <!-- Files Table -->
+      <div class="table-responsive">
+        <table class="music-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">Song Title</th>
+              <th style="width: 15%;">Size</th>
+              <th style="width: 40%; text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="files-tbody">
+            <tr>
+              <td colspan="3" class="table-loading">Loading library...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Network Info & Security Footer -->
+    <footer class="admin-footer">
+      <div class="footer-note">
+        <strong>Security Notice:</strong> This server is intended exclusively for private local Wi-Fi Hotspot transfer. Do not expose this port to the public internet.
+      </div>
+    </footer>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Hidden helper for clipboard copy fallback over plain HTTP -->
+  <textarea id="copy-helper" style="position:fixed;top:-9999px;left:-9999px;opacity:0;"></textarea>
+
+  <script src="/app.js"></script>
+</body>
+</html>

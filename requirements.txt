@@ -1,0 +1,15 @@
+# No external dependencies required!
+# This project runs entirely on the Python 3 Standard Library (Python 3.8+).
+# 
+# Built-in modules used:
+# - http.server
+# - socketserver
+# - socket
+# - os
+# - sys
+# - re
+# - json
+# - urllib.parse
+# - subprocess
+# - platform
+# - time
