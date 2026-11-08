@@ -297,6 +297,34 @@ def run_tests():
             print("Delete failed with:", e.code, e.read().decode('utf-8'))
             raise
 
+        # 13. Test Batch Delete API
+        print("Testing Batch Delete POST /api/delete ...")
+        # Create 2 small test files directly in music dir
+        b1_path = os.path.join(MUSIC_DIR, "batch_test_1.mp3")
+        b2_path = os.path.join(MUSIC_DIR, "batch_test_2.mp3")
+        with open(b1_path, "wb") as f:
+            f.write(b"ID3\x03\x00\x00\x00\x00\x00\x00mock1")
+        with open(b2_path, "wb") as f:
+            f.write(b"ID3\x03\x00\x00\x00\x00\x00\x00mock2")
+
+        batch_del_body = json.dumps({"filenames": ["batch_test_1.mp3", "batch_test_2.mp3"]}).encode('utf-8')
+        batch_del_req = urllib.request.Request(
+            f"{BASE_URL}/api/delete",
+            data=batch_del_body,
+            headers={"Content-Type": "application/json", "Content-Length": str(len(batch_del_body))},
+            method="POST"
+        )
+        with urllib.request.urlopen(batch_del_req) as resp:
+            assert resp.status == 200
+            del_resp = json.loads(resp.read().decode('utf-8'))
+            assert del_resp["success"] is True
+            assert del_resp["deleted_count"] == 2
+            assert "batch_test_1.mp3" in del_resp["deleted"]
+            assert "batch_test_2.mp3" in del_resp["deleted"]
+            assert not os.path.exists(b1_path)
+            assert not os.path.exists(b2_path)
+            print("  -> Batch delete 2 files OK:", del_resp["message"])
+
         print("\n==========================================")
         print(">>> ALL INTEGRATION TESTS PASSED 100%! <<<")
         print("==========================================")

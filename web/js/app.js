@@ -23,6 +23,7 @@ var filesTbody = document.getElementById("files-tbody");
 var libraryCount = document.getElementById("library-count");
 var libraryTotalSize = document.getElementById("library-total-size");
 var toast = document.getElementById("toast");
+var selectedFiles = new Set();
 
 // Modals
 var renameModal = document.getElementById("rename-modal");
@@ -224,6 +225,17 @@ function loadFilesList() {
       try {
         var data = JSON.parse(xhr.responseText);
         filesList = data.files || [];
+
+        // Prune any deleted files from selectedFiles
+        var currentNames = new Set(filesList.map(function (f) { return f.name; }));
+        var toRemove = [];
+        selectedFiles.forEach(function (name) {
+          if (!currentNames.has(name)) toRemove.push(name);
+        });
+        for (var k = 0; k < toRemove.length; k++) {
+          selectedFiles.delete(toRemove[k]);
+        }
+
         renderMusicTable(filesList);
         updateLibraryStats(filesList);
       } catch (e) {
@@ -258,7 +270,8 @@ function renderMusicTable(list) {
   if (!filesTbody) return;
 
   if (list.length === 0) {
-    filesTbody.innerHTML = '<tr><td colspan="3" class="table-empty">No music files uploaded yet. Drag & drop files above to start!</td></tr>';
+    filesTbody.innerHTML = '<tr><td colspan="4" class="table-empty">No music files uploaded yet. Drag & drop files above to start!</td></tr>';
+    updateBatchBar();
     return;
   }
 
@@ -269,10 +282,15 @@ function renderMusicTable(list) {
     var fullUrl = window.location.origin + file.url;
     var isLocked = Boolean(file.is_locked);
     var durationStr = file.duration_formatted ? ' <span class="badge-dim">' + file.duration_formatted + '</span>' : '';
-
     var lockedBadge = isLocked ? ' <span class="badge badge-warning">Processing</span>' : '';
+    var isSelected = selectedFiles.has(file.name);
 
-    rowsHtml += '<tr>' +
+    rowsHtml += '<tr id="row-' + i + '" class="' + (isSelected ? 'row-selected' : '') + '">' +
+      '<td style="text-align: center;">' +
+        '<input type="checkbox" class="custom-checkbox file-select-cb" data-filename="' + escapeJsString(file.name) + '" ' +
+        (isSelected ? 'checked ' : '') +
+        (isLocked ? 'disabled title="File is being processed" ' : 'onchange="onFileCheckboxChange(this, \'' + escapeJsString(file.name) + '\') "') + '>' +
+      '</td>' +
       '<td>' +
         '<div class="song-cell-title">' +
           '<span class="song-icon">&#9835;</span>' +
@@ -305,6 +323,7 @@ function renderMusicTable(list) {
   }
 
   filesTbody.innerHTML = rowsHtml;
+  updateBatchBar();
 }
 
 function renderTableError(msg) {
@@ -597,7 +616,7 @@ function copyUsingExecCommand(text) {
 }
 
 // ----------------------------------------------------------------------
-// Delete File
+// Delete File (Single & Batch)
 // ----------------------------------------------------------------------
 function deleteFile(filename) {
   if (!confirm("Are you sure you want to delete '" + filename + "' from the server?")) {
@@ -614,6 +633,7 @@ function deleteFile(filename) {
         var resp = JSON.parse(xhr.responseText);
         if (resp.success) {
           showToast("Deleted: " + filename);
+          selectedFiles.delete(filename);
           loadFilesList();
         } else {
           showAlert("Delete failed: " + (resp.error || "Unknown error"), "error");
@@ -639,12 +659,166 @@ function deleteFile(filename) {
 }
 
 // ----------------------------------------------------------------------
+// Batch Selection & Deletion Functions
+// ----------------------------------------------------------------------
+function onFileCheckboxChange(cb, filename) {
+  if (cb.checked) {
+    selectedFiles.add(filename);
+    var row = cb.closest("tr");
+    if (row) row.classList.add("row-selected");
+  } else {
+    selectedFiles.delete(filename);
+    var row = cb.closest("tr");
+    if (row) row.classList.remove("row-selected");
+  }
+  updateBatchBar();
+}
+
+function toggleSelectAll(masterCb) {
+  var isChecked = masterCb.checked;
+  var visible = getCurrentVisibleFiles();
+
+  for (var i = 0; i < visible.length; i++) {
+    var f = visible[i];
+    if (!f.is_locked) {
+      if (isChecked) {
+        selectedFiles.add(f.name);
+      } else {
+        selectedFiles.delete(f.name);
+      }
+    }
+  }
+
+  var cbs = document.querySelectorAll(".file-select-cb");
+  for (var j = 0; j < cbs.length; j++) {
+    var fn = cbs[j].getAttribute("data-filename");
+    var checked = selectedFiles.has(fn);
+    cbs[j].checked = checked;
+    var row = cbs[j].closest("tr");
+    if (row) {
+      if (checked) row.classList.add("row-selected");
+      else row.classList.remove("row-selected");
+    }
+  }
+
+  updateBatchBar();
+}
+
+function deselectAllFiles() {
+  selectedFiles.clear();
+  var master = document.getElementById("th-select-all");
+  if (master) {
+    master.checked = false;
+    master.indeterminate = false;
+  }
+
+  var cbs = document.querySelectorAll(".file-select-cb");
+  for (var j = 0; j < cbs.length; j++) {
+    cbs[j].checked = false;
+    var row = cbs[j].closest("tr");
+    if (row) row.classList.remove("row-selected");
+  }
+
+  updateBatchBar();
+}
+
+function getCurrentVisibleFiles() {
+  var input = document.getElementById("admin-search");
+  var term = input ? input.value.toLowerCase().trim() : "";
+  if (!term) return filesList;
+  return filesList.filter(function (file) {
+    return file.name.toLowerCase().indexOf(term) > -1;
+  });
+}
+
+function updateBatchBar() {
+  var bar = document.getElementById("batch-bar");
+  var countEl = document.getElementById("batch-count");
+  var delBtnCountEl = document.getElementById("batch-delete-count");
+  var masterCb = document.getElementById("th-select-all");
+  var count = selectedFiles.size;
+
+  if (bar) {
+    bar.style.display = count > 0 ? "flex" : "none";
+  }
+  if (countEl) countEl.textContent = count;
+  if (delBtnCountEl) delBtnCountEl.textContent = count;
+
+  if (masterCb) {
+    var visible = getCurrentVisibleFiles().filter(function (f) { return !f.is_locked; });
+    if (visible.length === 0) {
+      masterCb.checked = false;
+      masterCb.indeterminate = false;
+    } else {
+      var selectedVisibleCount = visible.filter(function (f) { return selectedFiles.has(f.name); }).length;
+      masterCb.checked = (selectedVisibleCount === visible.length);
+      masterCb.indeterminate = (selectedVisibleCount > 0 && selectedVisibleCount < visible.length);
+    }
+  }
+}
+
+function deleteSelectedFiles() {
+  var filenames = Array.from(selectedFiles);
+  if (filenames.length === 0) return;
+
+  var confirmMsg = "Are you sure you want to permanently delete " + filenames.length + " selected song(s) from the server?\n\n";
+  if (filenames.length <= 5) {
+    confirmMsg += filenames.join("\n");
+  } else {
+    confirmMsg += filenames.slice(0, 5).join("\n") + "\n...and " + (filenames.length - 5) + " more";
+  }
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  var btn = document.getElementById("btn-batch-delete");
+  if (btn) btn.disabled = true;
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/delete", true);
+  xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+
+  xhr.onload = function () {
+    if (btn) btn.disabled = false;
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.success) {
+          showToast("Successfully deleted " + (resp.deleted_count || filenames.length) + " song(s)!");
+          deselectAllFiles();
+          loadFilesList();
+        } else {
+          showAlert("Batch delete error: " + (resp.error || "Unknown error"), "error");
+        }
+      } catch (e) {
+        showAlert("Failed to parse delete response", "error");
+      }
+    } else {
+      var errMsg = "Batch delete failed with status " + xhr.status;
+      try {
+        var errResp = JSON.parse(xhr.responseText);
+        if (errResp.error) errMsg = errResp.error;
+      } catch (e) {}
+      showAlert(errMsg, "error");
+    }
+  };
+
+  xhr.onerror = function () {
+    if (btn) btn.disabled = false;
+    showAlert("Network error during batch deletion", "error");
+  };
+
+  xhr.send(JSON.stringify({ filenames: filenames }));
+}
+
+// ----------------------------------------------------------------------
 // Filtering
 // ----------------------------------------------------------------------
 function filterAdminList() {
   var input = document.getElementById("admin-search");
   if (!input) return;
-  var term = input.value.toLowerCase();
+  var term = input.value.toLowerCase().trim();
 
   var filtered = filesList.filter(function (file) {
     return file.name.toLowerCase().indexOf(term) > -1;

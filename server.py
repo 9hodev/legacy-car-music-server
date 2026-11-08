@@ -998,49 +998,78 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid JSON body")
             return
 
-        filename = data.get("filename", "").strip()
-        if not filename:
-            self.send_error_json("Filename is required")
+        # Support both {"filename": "song.mp3"} and {"filenames": ["song1.mp3", "song2.mp3"]}
+        raw_filenames = data.get("filenames")
+        is_batch = isinstance(raw_filenames, list)
+
+        if is_batch:
+            filenames = [str(f).strip() for f in raw_filenames if str(f).strip()]
+        else:
+            single = data.get("filename", "").strip()
+            filenames = [single] if single else []
+
+        if not filenames:
+            self.send_error_json("Filename or filenames list is required")
             return
 
-        filename = os.path.basename(filename)
-        target_path = os.path.join(MUSIC_DIR, filename)
+        deleted_files = []
+        failed_files = []
 
-        if not is_safe_path(MUSIC_DIR, target_path):
-            self.send_error_json("Invalid path: traversal detected", status=HTTPStatus.FORBIDDEN)
+        for name in filenames:
+            clean_name = os.path.basename(name)
+            target_path = os.path.join(MUSIC_DIR, clean_name)
+
+            if not is_safe_path(MUSIC_DIR, target_path):
+                failed_files.append({"name": name, "error": "Invalid path: traversal detected"})
+                continue
+
+            if not os.path.isfile(target_path):
+                failed_files.append({"name": name, "error": "File not found on server"})
+                continue
+
+            if audio_service.is_file_locked(clean_name):
+                failed_files.append({"name": name, "error": "File is currently being processed by an active task"})
+                continue
+
+            # Attempt deletion with retry on Windows (handles transient file locks)
+            deleted = False
+            last_err = None
+            for attempt in range(5):
+                try:
+                    file_size = os.path.getsize(target_path)
+                    os.remove(target_path)
+                    deleted = True
+                    db_service.log_event("file_deleted", client_ip, filename=clean_name, file_size=file_size, status="info")
+                    deleted_files.append(clean_name)
+                    break
+                except (PermissionError, OSError) as e:
+                    last_err = e
+                    time.sleep(0.1)
+                except Exception as e:
+                    last_err = e
+                    break
+
+            if not deleted:
+                failed_files.append({"name": name, "error": f"Failed to delete: {last_err}"})
+
+        # Backward compatibility for single delete request
+        if not is_batch:
+            if deleted_files:
+                self.send_json({"success": True, "message": f"Deleted {deleted_files[0]}", "deleted": deleted_files[0]})
+            else:
+                err = failed_files[0]["error"] if failed_files else "Delete failed"
+                self.send_error_json(err, status=HTTPStatus.NOT_FOUND if "not found" in err.lower() else HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
-        if not os.path.isfile(target_path):
-            self.send_error_json("File not found on server", status=HTTPStatus.NOT_FOUND)
-            return
-
-        if audio_service.is_file_locked(filename):
-            self.send_error_json(
-                f"Cannot delete '{filename}': File is currently being processed by an active task.",
-                status=HTTPStatus.CONFLICT
-            )
-            return
-
-        # Attempt deletion with retry on Windows (handles transient file locks)
-        deleted = False
-        last_err = None
-        for attempt in range(5):
-            try:
-                file_size = os.path.getsize(target_path)
-                os.remove(target_path)
-                deleted = True
-                db_service.log_event("file_deleted", client_ip, filename=filename, file_size=file_size, status="info")
-                self.send_json({"success": True, "message": f"Deleted {filename}", "deleted": filename})
-                break
-            except (PermissionError, OSError) as e:
-                last_err = e
-                time.sleep(0.1)
-            except Exception as e:
-                last_err = e
-                break
-
-        if not deleted:
-            self.send_error_json(f"Failed to delete file: {last_err}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
+        # Batch delete response
+        self.send_json({
+            "success": len(deleted_files) > 0 or len(failed_files) == 0,
+            "deleted_count": len(deleted_files),
+            "failed_count": len(failed_files),
+            "deleted": deleted_files,
+            "failed": failed_files,
+            "message": f"Successfully deleted {len(deleted_files)} file(s)" + (f", {len(failed_files)} failed" if failed_files else "")
+        })
 
     def handle_rename(self):
         client_ip = self.get_client_ip()

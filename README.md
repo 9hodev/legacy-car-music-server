@@ -117,7 +117,7 @@ python3 server.py
 - `POST /api/rename`: เปลี่ยนชื่อไฟล์โดยคงนามสกุลเดิม
 - `POST /api/convert`: สั่งแปลงไฟล์หรือบีบอัดเสียงใน Background
 - `POST /api/merge`: สั่งรวมไฟล์เสียงหลากฟอร์แมต (Concat, Silence, Crossfade)
-- `POST /api/delete`: ลบไฟล์เสียงออกจากเซิร์ฟเวอร์
+- `POST /api/delete`: ลบไฟล์เสียงเดี่ยว (`{"filename": "..."}`) หรือลบแบบเลือกหลายไฟล์พร้อมกัน Batch Delete (`{"filenames": ["...", "..."]}`)
 - `GET /api/tasks/<task_id>`: ติดตามความคืบหน้าของงานแปลง/รวมเสียง
 
 ---

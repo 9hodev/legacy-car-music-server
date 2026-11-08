@@ -75,19 +75,36 @@
         </div>
       </div>
 
+      <!-- Batch Actions Toolbar -->
+      <div id="batch-bar" class="batch-bar" style="display: none;">
+        <div class="batch-left">
+          <span class="batch-badge" id="batch-count">0</span>
+          <span class="batch-label">song(s) selected</span>
+        </div>
+        <div class="batch-right">
+          <button type="button" class="btn btn-secondary btn-small" onclick="deselectAllFiles()">Deselect All</button>
+          <button type="button" class="btn btn-danger btn-small" id="btn-batch-delete" onclick="deleteSelectedFiles()">
+            &#128465; Delete Selected (<span id="batch-delete-count">0</span>)
+          </button>
+        </div>
+      </div>
+
       <!-- Files Table -->
       <div class="table-responsive">
         <table class="music-table">
           <thead>
             <tr>
-              <th style="width: 36%;">Song Title</th>
+              <th style="width: 44px; text-align: center;">
+                <input type="checkbox" id="th-select-all" class="custom-checkbox" onchange="toggleSelectAll(this)" title="Select / Deselect all songs">
+              </th>
+              <th style="width: 38%;">Song Title</th>
               <th style="width: 14%;">Size</th>
-              <th style="width: 50%; text-align: right;">Actions</th>
+              <th style="width: 44%; text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody id="files-tbody">
             <tr>
-              <td colspan="3" class="table-loading">Loading library...</td>
+              <td colspan="4" class="table-loading">Loading library...</td>
             </tr>
           </tbody>
         </table>
