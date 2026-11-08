@@ -412,3 +412,4 @@ function escapeHtml(text) {
 function escapeJsString(str) {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
+
