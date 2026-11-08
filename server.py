@@ -116,7 +116,7 @@ def get_network_interfaces():
     if platform.system() == "Darwin":
         for iface in ["en0", "en1", "en2", "en3"]:
             try:
-                res = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True, timeout=1)
+                res = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1)
                 ip = res.stdout.strip()
                 if ip and ip not in seen_ips:
                     seen_ips.add(ip)

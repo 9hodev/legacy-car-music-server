@@ -122,7 +122,7 @@ class AudioService:
         ]
 
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
             data = json.loads(res.stdout)
             format_info = data.get("format", {})
             duration = float(format_info.get("duration", 0.0))
@@ -257,6 +257,8 @@ class AudioService:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1
             )
 
@@ -394,6 +396,8 @@ class AudioService:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1
             )
 

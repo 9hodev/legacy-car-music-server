@@ -12,7 +12,7 @@ BASE_URL = f"http://127.0.0.1:{TEST_PORT}"
 
 def run_tests():
     print(f"Starting server on port {TEST_PORT}...")
-    proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen([sys.executable, "server.py", str(TEST_PORT)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1.5)
 
     try:
