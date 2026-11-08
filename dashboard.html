@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Dashboard - Local Music Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="admin-body">
+
+  <div class="admin-container dashboard-container">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="header-brand">
+        <div class="logo-icon">&#128225;</div>
+        <div>
+          <h1>Network &amp; Device Monitor</h1>
+          <p class="subtitle">Real-time Connections, Device Registry, Active Transfers &amp; Activity Logs</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="/admin" class="btn btn-secondary">&#128193; Music Admin</a>
+        <a href="/studio" class="btn btn-studio">&#127911; Audio Studio</a>
+        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Car View</a>
+        <button id="btn-auth-toggle" class="btn btn-secondary" onclick="openAuthModal()">&#128274; Admin Login</button>
+      </div>
+    </header>
+
+    <!-- SECTION A: Network Overview Cards -->
+    <section class="overview-grid">
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-green">&#9679;</div>
+        <div class="stat-content">
+          <div class="stat-label">Server Status</div>
+          <div class="stat-value" id="stat-status">Running</div>
+          <div class="stat-sub" id="stat-host-port">0.0.0.0:8000</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-blue">&#9201;</div>
+        <div class="stat-content">
+          <div class="stat-label">Server Uptime</div>
+          <div class="stat-value" id="stat-uptime">00h 00m 00s</div>
+          <div class="stat-sub">Persistent SQLite Session</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-purple">&#128241;</div>
+        <div class="stat-content">
+          <div class="stat-label">Online Devices</div>
+          <div class="stat-value" id="stat-online-devices">0</div>
+          <div class="stat-sub" id="stat-registered-devices">0 registered total</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-amber">&#128260;</div>
+        <div class="stat-content">
+          <div class="stat-label">Active Connections</div>
+          <div class="stat-value" id="stat-connections">0</div>
+          <div class="stat-sub" id="stat-active-transfers">0 live file transfers</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-blue">&#11014;</div>
+        <div class="stat-content">
+          <div class="stat-label">Upload Throughput</div>
+          <div class="stat-value" id="stat-up-speed">0 KB/s</div>
+          <div class="stat-sub" id="stat-total-uploaded">Total: 0 MB</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon stat-icon-green">&#11015;</div>
+        <div class="stat-content">
+          <div class="stat-label">Download Throughput</div>
+          <div class="stat-value" id="stat-down-speed">0 KB/s</div>
+          <div class="stat-sub" id="stat-total-downloaded">Total: 0 MB</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION C: Live Transfers (Real-time progress) -->
+    <section class="card" id="transfers-card">
+      <div class="card-header space-between">
+        <div class="title-with-badge">
+          <h2>Live File Transfers</h2>
+          <span id="transfers-badge" class="badge badge-primary">0 active</span>
+        </div>
+        <span class="badge badge-secondary">Background polling excluded</span>
+      </div>
+
+      <div id="transfers-container" class="transfers-container">
+        <div class="table-empty">No active uploads or downloads right now.</div>
+      </div>
+    </section>
+
+    <!-- SECTION B: Connected Devices Registry -->
+    <section class="card">
+      <div class="card-header space-between">
+        <div class="title-with-badge">
+          <h2>Connected Devices &amp; Registry</h2>
+          <span id="devices-badge" class="badge badge-primary">0 devices</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary btn-small" onclick="loadDevices()">&#8635; Refresh Devices</button>
+        </div>
+      </div>
+
+      <div class="info-banner" style="margin-bottom: 16px;">
+        <strong>Network Discovery Note:</strong> HTTP servers cannot scan arbitrary devices on a Wi-Fi network without client interaction or LAN discovery. Devices register automatically upon opening any page on the server.
+      </div>
+
+      <div class="table-responsive">
+        <table class="music-table">
+          <thead>
+            <tr>
+              <th style="width: 25%;">Device Name</th>
+              <th style="width: 15%;">IP Address</th>
+              <th style="width: 12%;">Type</th>
+              <th style="width: 12%;">Status</th>
+              <th style="width: 18%;">Last Seen</th>
+              <th style="width: 18%; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody">
+            <tr><td colspan="6" class="table-loading">Loading devices...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION D: Activity Logs & Filtering -->
+    <section class="card">
+      <div class="card-header space-between">
+        <div class="title-with-badge">
+          <h2>Activity &amp; Security Logs</h2>
+          <span id="logs-count-badge" class="badge badge-primary">0 records</span>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-secondary btn-small" onclick="exportLogsCsv()">&#128190; Export CSV</button>
+          <button class="btn btn-danger btn-small" onclick="confirmClearLogs()">&#128465; Clear Logs</button>
+        </div>
+      </div>
+
+      <!-- Filters Bar -->
+      <div class="log-filter-bar">
+        <input type="text" id="log-search" class="admin-input" placeholder="Search by file, IP, device..." oninput="onFilterChange()">
+        <select id="log-event-filter" class="admin-select" onchange="onFilterChange()">
+          <option value="">All Event Types</option>
+          <option value="upload_started">Upload Started</option>
+          <option value="upload_completed">Upload Completed</option>
+          <option value="upload_failed">Upload Failed</option>
+          <option value="download_started">Download Started</option>
+          <option value="download_completed">Download Completed</option>
+          <option value="download_failed">Download Failed</option>
+          <option value="file_renamed">File Renamed</option>
+          <option value="file_deleted">File Deleted</option>
+          <option value="audio_convert_started">Convert Started</option>
+          <option value="audio_convert_completed">Convert Completed</option>
+          <option value="audio_merge_started">Merge Started</option>
+          <option value="audio_merge_completed">Merge Completed</option>
+          <option value="device_registered">Device Registered</option>
+          <option value="device_online">Device Online</option>
+          <option value="device_offline">Device Offline</option>
+          <option value="auth_success">Auth Success</option>
+          <option value="auth_failed">Auth Failed</option>
+        </select>
+        <button class="btn btn-secondary" onclick="loadLogs(1)">Apply Filter</button>
+      </div>
+
+      <!-- Logs Table -->
+      <div class="table-responsive">
+        <table class="music-table">
+          <thead>
+            <tr>
+              <th style="width: 18%;">Timestamp</th>
+              <th style="width: 18%;">Event Type</th>
+              <th style="width: 14%;">Client IP</th>
+              <th style="width: 32%;">Target / Details</th>
+              <th style="width: 18%;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr><td colspan="5" class="table-loading">Loading activity logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination-bar">
+        <button id="btn-prev-page" class="btn btn-secondary btn-small" onclick="prevPage()" disabled>&larr; Previous</button>
+        <span id="pagination-text" class="pagination-text">Page 1 of 1</span>
+        <button id="btn-next-page" class="btn btn-secondary btn-small" onclick="nextPage()" disabled>Next &rarr;</button>
+      </div>
+    </section>
+
+    <!-- SECTION E: Server Controls -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Server Controls &amp; Network Tools</h2>
+      </div>
+      <div class="server-controls-grid">
+        <div class="control-box">
+          <h3>Server Address</h3>
+          <p class="text-muted">Direct URL to access the server on this Wi-Fi Hotspot</p>
+          <div class="input-with-addon">
+            <input type="text" id="server-url-display" class="admin-input" readonly value="http://localhost:8000">
+            <button class="btn btn-primary" onclick="copyServerUrl()">Copy URL</button>
+          </div>
+        </div>
+
+        <div class="control-box">
+          <h3>Authentication Status</h3>
+          <p id="auth-status-desc" class="text-muted">Status: Unauthenticated (Read-only Admin)</p>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-login-open" class="btn btn-secondary" onclick="openAuthModal()">Admin Login</button>
+            <button id="btn-logout" class="btn btn-danger" onclick="logoutAdmin()" style="display: none;">Logout</button>
+          </div>
+        </div>
+
+        <div class="control-box">
+          <h3>Server Lifecycle</h3>
+          <p class="text-muted">Stop server process cleanly (Admin auth required)</p>
+          <button class="btn btn-danger" onclick="confirmStopServer()">&#9209; Graceful Shutdown</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Security Footer -->
+    <footer class="admin-footer">
+      <div class="footer-note">
+        <strong>Security &amp; Network Monitoring:</strong> Logs are stored in local SQLite database with write-ahead logging (WAL). Client isolation on Wi-Fi Hotspots may prevent devices from communicating with one another.
+      </div>
+    </footer>
+  </div>
+
+  <!-- Admin Auth Modal -->
+  <div id="auth-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3>Admin Authentication</h3>
+        <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-label">Enter Admin PIN (Default: <code>8888</code>) or Password (<code>admin</code>):</p>
+        <div class="form-group">
+          <input type="password" id="auth-secret-input" class="admin-input" placeholder="PIN or Password" onkeydown="if(event.key==='Enter')submitAuth()">
+        </div>
+        <div id="auth-error-msg" class="alert alert-error" style="display: none; margin-top: 12px;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeAuthModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAuth()">Authenticate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Copy Helper -->
+  <textarea id="copy-helper" style="position:fixed;top:-9999px;left:-9999px;opacity:0;"></textarea>
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

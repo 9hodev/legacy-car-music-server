@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Local Music Drop Server & Audio Studio
-A lightweight, zero-dependency HTTP server built with Python 3 Standard Library
-and FFmpeg audio processing engine.
+Local Music Drop Server, Audio Studio & Network Dashboard
+A lightweight, high-performance HTTP server built with Python 3 Standard Library,
+SQLite persistent logging/registry, and FFmpeg audio processing engine.
 """
 
 import os
@@ -18,13 +18,13 @@ import http.server
 import socketserver
 import time
 import html
+import uuid
 
 from audio_service import AudioService
-from audio_convert import (
-    SUPPORTED_INPUT_EXTS,
-    SUPPORTED_OUTPUT_EXTS,
-    is_lossy_transcode
-)
+from audio_convert import SUPPORTED_INPUT_EXTS, SUPPORTED_OUTPUT_EXTS
+from db_service import DatabaseService
+from auth_service import AuthService
+from monitor_service import MonitorService
 
 # ----------------------------------------------------------------------
 # Configuration
@@ -46,23 +46,33 @@ MIME_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".csv": "text/csv; charset=utf-8",
     ".ico": "image/x-icon",
     ".png": "image/png",
     ".svg": "image/svg+xml",
 }
 
-# Ensure music directory exists
 os.makedirs(MUSIC_DIR, exist_ok=True)
 
-# Initialize Audio Service (Background workers for FFmpeg convert/merge)
-audio_service = AudioService(MUSIC_DIR, max_workers=2)
+# ----------------------------------------------------------------------
+# System Services Initialization
+# ----------------------------------------------------------------------
+SERVER_START_TIME = time.time()
+SERVER_SESSION_ID = f"sess_{int(SERVER_START_TIME)}_{uuid.uuid4().hex[:6]}"
+
+db_service = DatabaseService()
+db_service.start_session(SERVER_SESSION_ID)
+db_service.log_event("server_started", "127.0.0.1", status="info")
+
+auth_service = AuthService(db_service, default_pin="8888", default_password="admin")
+monitor_service = MonitorService(db_service, SERVER_START_TIME)
+audio_service = AudioService(MUSIC_DIR, max_workers=2, db_service=db_service)
 
 
 # ----------------------------------------------------------------------
 # Helper Utilities
 # ----------------------------------------------------------------------
 def format_size(bytes_num):
-    """Format bytes to human readable string (KB, MB, GB)."""
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_num < 1024.0:
             return f"{bytes_num:.1f} {unit}" if unit != 'B' else f"{bytes_num} B"
@@ -71,10 +81,6 @@ def format_size(bytes_num):
 
 
 def sanitize_filename(filename):
-    """
-    Sanitize filename to prevent path traversal and illegal characters,
-    while preserving unicode characters (Thai, Japanese, accented characters, etc.).
-    """
     filename = os.path.basename(filename)
     filename = re.sub(r'[\x00-\x1f\x7f/\\:\*\?"<>\|]', '', filename).strip()
     filename = filename.lstrip('. ')
@@ -84,7 +90,6 @@ def sanitize_filename(filename):
 
 
 def get_unique_filename(directory, filename):
-    """Ensure filename does not overwrite existing file by appending (1), (2), etc."""
     base, ext = os.path.splitext(filename)
     target = os.path.join(directory, filename)
     counter = 1
@@ -96,7 +101,6 @@ def get_unique_filename(directory, filename):
 
 
 def is_safe_path(base_directory, target_path):
-    """Check if target_path is strictly inside base_directory to prevent traversal."""
     try:
         base = os.path.abspath(base_directory)
         target = os.path.abspath(target_path)
@@ -106,19 +110,13 @@ def is_safe_path(base_directory, target_path):
 
 
 def get_network_interfaces():
-    """Detect local network IP addresses."""
     interfaces = []
     seen_ips = set()
 
     if platform.system() == "Darwin":
         for iface in ["en0", "en1", "en2", "en3"]:
             try:
-                res = subprocess.run(
-                    ["ipconfig", "getifaddr", iface],
-                    capture_output=True,
-                    text=True,
-                    timeout=1
-                )
+                res = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True, timeout=1)
                 ip = res.stdout.strip()
                 if ip and ip not in seen_ips:
                     seen_ips.add(ip)
@@ -153,7 +151,6 @@ def get_network_interfaces():
 
 
 def get_music_files_list(include_metadata=False):
-    """Scan music/ folder and return sorted file info list."""
     files = []
     try:
         for entry in os.scandir(MUSIC_DIR):
@@ -305,14 +302,44 @@ def parse_streaming_multipart(stream, boundary, content_length, on_file_start, o
 
 
 # ----------------------------------------------------------------------
-# HTTP Request Handler
+# HTTP Request Handler with Monitoring & Security
 # ----------------------------------------------------------------------
 class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
-    server_version = "LocalMusicServer/2.0"
+    server_version = "LocalMusicServer/3.0"
 
     def log_message(self, format, *args):
+        # Clean formatted stdout log
         sys.stdout.write(f"[{time.strftime('%H:%M:%S')}] {self.address_string()} - {format % args}\n")
         sys.stdout.flush()
+
+    def get_client_ip(self):
+        return self.client_address[0] if self.client_address else "127.0.0.1"
+
+    def is_authenticated(self):
+        """Verify admin session token from header or cookie."""
+        auth_header = self.headers.get("Authorization", "").strip()
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            if auth_service.validate_session(token):
+                return True
+
+        admin_token = self.headers.get("X-Admin-Token", "").strip()
+        if admin_token and auth_service.validate_session(admin_token):
+            return True
+
+        cookies = self.headers.get("Cookie", "")
+        for c in cookies.split(";"):
+            if "=" in c:
+                k, v = c.strip().split("=", 1)
+                if k == "admin_session" and auth_service.validate_session(v):
+                    return True
+        return False
+
+    def get_device_id_header(self):
+        dev_id = self.headers.get("X-Device-Id", "").strip()
+        if dev_id and not db_service.is_device_revoked(dev_id):
+            return dev_id
+        return None
 
     def send_json(self, data, status=HTTPStatus.OK):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -323,6 +350,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self.end_headers()
         self.wfile.write(body)
+        monitor_service.on_connection_end(self.get_client_ip(), bytes_sent=len(body))
 
     def send_error_json(self, message, status=HTTPStatus.BAD_REQUEST):
         self.send_json({"success": False, "error": message}, status=status)
@@ -340,6 +368,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
     def serve_static_file(self, file_path, mime_type):
         if not os.path.isfile(file_path):
             self.send_error(HTTPStatus.NOT_FOUND, "File Not Found")
+            monitor_service.on_connection_end(self.get_client_ip())
             return
 
         try:
@@ -351,13 +380,16 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.wfile.write(content)
+            monitor_service.on_connection_end(self.get_client_ip(), bytes_sent=len(content))
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Error reading file: {e}")
+            monitor_service.on_connection_end(self.get_client_ip())
 
     def render_car_index(self):
         index_path = os.path.join(BASE_DIR, "index.html")
         if not os.path.isfile(index_path):
             self.send_error(HTTPStatus.NOT_FOUND, "index.html not found")
+            monitor_service.on_connection_end(self.get_client_ip())
             return
 
         try:
@@ -400,22 +432,30 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
             self.end_headers()
             self.wfile.write(content_bytes)
+            monitor_service.on_connection_end(self.get_client_ip(), bytes_sent=len(content_bytes))
         except Exception as e:
             self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Error rendering index: {e}")
+            monitor_service.on_connection_end(self.get_client_ip())
 
     def handle_file_download(self, raw_filename):
+        client_ip = self.get_client_ip()
+        device_id = self.get_device_id_header()
         filename = urllib.parse.unquote(raw_filename)
         filename = os.path.basename(filename)
         file_path = os.path.join(MUSIC_DIR, filename)
 
         if not is_safe_path(MUSIC_DIR, file_path) or not os.path.isfile(file_path):
             self.send_error(HTTPStatus.NOT_FOUND, "Music file not found")
+            monitor_service.on_connection_end(client_ip)
             return
 
         ext = os.path.splitext(filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             self.send_error(HTTPStatus.FORBIDDEN, "File extension not allowed")
+            monitor_service.on_connection_end(client_ip)
             return
+
+        transfer_id = f"down_{uuid.uuid4().hex[:8]}"
 
         try:
             file_size = os.path.getsize(file_path)
@@ -436,6 +476,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                         self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
                         self.send_header("Content-Range", f"bytes */{file_size}")
                         self.end_headers()
+                        monitor_service.on_connection_end(client_ip)
                         return
                     self.send_response(HTTPStatus.PARTIAL_CONTENT)
                     self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
@@ -458,8 +499,12 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
 
+            # Start monitoring this download transfer
+            monitor_service.start_transfer(transfer_id, "download", client_ip, filename, chunk_len, device_id=device_id)
+
             CHUNK_SIZE = 64 * 1024
             bytes_left = chunk_len
+            bytes_transferred = 0
 
             with open(file_path, "rb") as f:
                 if start > 0:
@@ -471,18 +516,30 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                         break
                     self.wfile.write(data)
                     bytes_left -= len(data)
+                    bytes_transferred += len(data)
+                    monitor_service.update_transfer(transfer_id, bytes_transferred)
+
+            monitor_service.end_transfer(transfer_id, "completed")
+            monitor_service.on_connection_end(client_ip, bytes_sent=bytes_transferred)
 
         except (ConnectionResetError, BrokenPipeError):
-            pass
+            # Client closed or aborted connection
+            monitor_service.end_transfer(transfer_id, "interrupted", "Client disconnected")
+            monitor_service.on_connection_end(client_ip, bytes_sent=bytes_transferred)
         except Exception as e:
-            print(f"[Error] Stream error for {filename}: {e}", file=sys.stderr)
+            monitor_service.end_transfer(transfer_id, "failed", str(e))
+            monitor_service.on_connection_end(client_ip, bytes_sent=bytes_transferred)
 
     # ------------------------------------------------------------------
     # GET Router
     # ------------------------------------------------------------------
     def do_GET(self):
+        client_ip = self.get_client_ip()
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        user_agent = self.headers.get("User-Agent", "")
+
+        monitor_service.on_connection_start(client_ip, "GET", path, user_agent)
 
         if path in ["/", "/index.html"]:
             self.render_car_index()
@@ -490,12 +547,16 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.serve_static_file(os.path.join(BASE_DIR, "admin.html"), "text/html; charset=utf-8")
         elif path in ["/studio", "/studio.html"]:
             self.serve_static_file(os.path.join(BASE_DIR, "studio.html"), "text/html; charset=utf-8")
+        elif path in ["/dashboard", "/dashboard.html"]:
+            self.serve_static_file(os.path.join(BASE_DIR, "dashboard.html"), "text/html; charset=utf-8")
         elif path == "/style.css":
             self.serve_static_file(os.path.join(BASE_DIR, "style.css"), "text/css; charset=utf-8")
         elif path == "/app.js":
             self.serve_static_file(os.path.join(BASE_DIR, "app.js"), "application/javascript; charset=utf-8")
         elif path == "/studio.js":
             self.serve_static_file(os.path.join(BASE_DIR, "studio.js"), "application/javascript; charset=utf-8")
+        elif path == "/dashboard.js":
+            self.serve_static_file(os.path.join(BASE_DIR, "dashboard.js"), "application/javascript; charset=utf-8")
         elif path == "/api/files":
             query = urllib.parse.parse_qs(parsed.query)
             include_meta = "meta" in query and query["meta"][0] in ["1", "true"]
@@ -506,6 +567,52 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                 "count": len(files),
                 "ffmpeg_available": audio_service.is_available()
             })
+        elif path == "/api/dashboard/stats":
+            metrics = monitor_service.get_dashboard_metrics()
+            interfaces = get_network_interfaces()
+            rec_ip = "127.0.0.1"
+            for desc, ip, is_wifi in interfaces:
+                if is_wifi and not ip.startswith("127."):
+                    rec_ip = ip
+                    break
+            if rec_ip == "127.0.0.1":
+                for desc, ip, is_wifi in interfaces:
+                    if not ip.startswith("127."):
+                        rec_ip = ip
+                        break
+            metrics.update({
+                "server_ip": rec_ip,
+                "server_port": DEFAULT_PORT,
+                "interfaces": interfaces,
+                "ffmpeg_available": audio_service.is_available(),
+                "authenticated": self.is_authenticated()
+            })
+            self.send_json({"success": True, "stats": metrics})
+        elif path == "/api/devices":
+            devices = db_service.get_devices()
+            self.send_json({"success": True, "devices": devices, "count": len(devices)})
+        elif path == "/api/logs":
+            query = urllib.parse.parse_qs(parsed.query)
+            page = int(query.get("page", [1])[0])
+            limit = int(query.get("limit", [20])[0])
+            event_type = query.get("event_type", [None])[0]
+            search = query.get("search", [None])[0]
+            start_date = query.get("start_date", [None])[0]
+            end_date = query.get("end_date", [None])[0]
+            logs_res = db_service.get_logs(page=page, limit=limit, event_type=event_type, search=search, start_date=start_date, end_date=end_date)
+            self.send_json({"success": True, **logs_res})
+        elif path == "/api/logs/export":
+            csv_data = db_service.export_logs_csv()
+            body = csv_data.encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Disposition", 'attachment; filename="activity_logs.csv"')
+            self.end_headers()
+            self.wfile.write(body)
+            monitor_service.on_connection_end(client_ip, bytes_sent=len(body))
+        elif path == "/api/auth/status":
+            self.send_json({"success": True, "authenticated": self.is_authenticated()})
         elif path.startswith("/api/tasks/"):
             task_id = path[len("/api/tasks/"):]
             task = audio_service.get_task(task_id)
@@ -518,13 +625,18 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_file_download(raw_filename)
         else:
             self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
+            monitor_service.on_connection_end(client_ip)
 
     # ------------------------------------------------------------------
-    # POST Router (Upload, Delete, Rename, Convert, Merge)
+    # POST Router (Upload, Delete, Rename, Convert, Merge, Auth, Devices)
     # ------------------------------------------------------------------
     def do_POST(self):
+        client_ip = self.get_client_ip()
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        user_agent = self.headers.get("User-Agent", "")
+
+        monitor_service.on_connection_start(client_ip, "POST", path, user_agent)
 
         if path in ["/api/upload", "/upload"]:
             self.handle_upload()
@@ -536,11 +648,120 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.handle_convert()
         elif path in ["/api/merge", "/merge"]:
             self.handle_merge()
+        elif path == "/api/auth/login":
+            self.handle_login()
+        elif path == "/api/auth/logout":
+            self.handle_logout()
+        elif path == "/api/devices/register":
+            self.handle_device_register()
+        elif path == "/api/devices/heartbeat":
+            self.handle_device_heartbeat()
+        elif path == "/api/devices/revoke":
+            self.handle_device_revoke()
+        elif path == "/api/logs/clear":
+            self.handle_logs_clear()
+        elif path == "/api/server/stop":
+            self.handle_server_stop()
         else:
             self.send_error(HTTPStatus.NOT_FOUND, "Endpoint not found")
+            monitor_service.on_connection_end(client_ip)
+
+    def handle_login(self):
+        client_ip = self.get_client_ip()
+        data = self.read_json_body() or {}
+        secret = data.get("secret", "").strip()
+
+        token, err = auth_service.verify_credentials(secret, client_ip)
+        if not token:
+            self.send_error_json(err or "Invalid credentials", status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        # Return session token and set cookie
+        resp_data = {"success": True, "token": token, "message": "Authenticated successfully"}
+        body = json.dumps(resp_data).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Set-Cookie", f"admin_session={token}; Path=/; HttpOnly; SameSite=Lax")
+        self.end_headers()
+        self.wfile.write(body)
+        monitor_service.on_connection_end(client_ip, bytes_sent=len(body))
+
+    def handle_logout(self):
+        auth_header = self.headers.get("Authorization", "").strip()
+        token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+        if not token:
+            token = self.headers.get("X-Admin-Token", "").strip()
+        if token:
+            auth_service.revoke_session(token)
+        self.send_json({"success": True, "message": "Logged out"})
+
+    def handle_device_register(self):
+        client_ip = self.get_client_ip()
+        data = self.read_json_body() or {}
+        device_id = data.get("device_id", "").strip() or f"dev_{uuid.uuid4().hex[:10]}"
+        name = data.get("name", "").strip() or f"Device-{device_id[-4:]}"
+        device_type = data.get("device_type", "unknown").strip()
+
+        res = db_service.register_device(device_id, name, device_type, client_ip)
+        db_service.log_event("device_registered", client_ip, device_id=device_id, status="info")
+        self.send_json({"success": True, "device": res})
+
+    def handle_device_heartbeat(self):
+        client_ip = self.get_client_ip()
+        data = self.read_json_body() or {}
+        device_id = data.get("device_id", "").strip()
+        activity = data.get("current_activity", "Active").strip()
+
+        if not device_id:
+            self.send_error_json("device_id is required")
+            return
+
+        ok = db_service.update_heartbeat(device_id, activity, client_ip)
+        if not ok:
+            self.send_error_json("Device revoked or not found", status=HTTPStatus.FORBIDDEN)
+            return
+        self.send_json({"success": True})
+
+    def handle_device_revoke(self):
+        # Requires admin auth
+        if not self.is_authenticated():
+            self.send_error_json("Authentication required to revoke devices", status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        data = self.read_json_body() or {}
+        device_id = data.get("device_id", "").strip()
+        if not device_id:
+            self.send_error_json("device_id is required")
+            return
+
+        db_service.revoke_device(device_id)
+        self.send_json({"success": True, "message": f"Device {device_id} revoked"})
+
+    def handle_logs_clear(self):
+        if not self.is_authenticated():
+            self.send_error_json("Authentication required to clear logs", status=HTTPStatus.UNAUTHORIZED)
+            return
+        db_service.clear_logs()
+        db_service.log_event("logs_cleared", self.get_client_ip(), status="warning")
+        self.send_json({"success": True, "message": "Activity logs cleared"})
+
+    def handle_server_stop(self):
+        if not self.is_authenticated():
+            self.send_error_json("Authentication required", status=HTTPStatus.UNAUTHORIZED)
+            return
+        self.send_json({"success": True, "message": "Server shutting down..."})
+        def delayed_shutdown():
+            time.sleep(1)
+            os._exit(0)
+        import threading
+        threading.Thread(target=delayed_shutdown, daemon=True).start()
 
     def handle_upload(self):
+        client_ip = self.get_client_ip()
+        device_id = self.get_device_id_header()
         content_type = self.headers.get("Content-Type", "")
+
         if "multipart/form-data" not in content_type or "boundary=" not in content_type:
             self.send_error_json("Invalid Content-Type: multipart/form-data required")
             return
@@ -559,6 +780,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Content-Length must be greater than zero")
             return
 
+        transfer_id = f"up_{uuid.uuid4().hex[:8]}"
         uploaded_files = []
         current_file = {
             "handle": None,
@@ -586,6 +808,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                 current_file["final_name"] = unique_name
                 current_file["bytes_written"] = 0
                 current_file["error"] = None
+                monitor_service.start_transfer(transfer_id, "upload", client_ip, unique_name, content_length, device_id=device_id)
             except Exception as e:
                 current_file["error"] = f"Failed to create file on disk: {e}"
 
@@ -594,6 +817,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                 try:
                     current_file["handle"].write(chunk)
                     current_file["bytes_written"] += len(chunk)
+                    monitor_service.update_transfer(transfer_id, current_file["bytes_written"])
                 except Exception as e:
                     current_file["error"] = f"Write error: {e}"
 
@@ -611,6 +835,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                         os.remove(current_file["temp_path"])
                     except Exception:
                         pass
+                monitor_service.end_transfer(transfer_id, "failed", current_file["error"])
                 uploaded_files.append({
                     "name": current_file.get("final_name") or "unknown",
                     "success": False,
@@ -620,6 +845,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                 final_path = os.path.join(MUSIC_DIR, current_file["final_name"])
                 try:
                     os.replace(current_file["temp_path"], final_path)
+                    monitor_service.end_transfer(transfer_id, "completed")
                     uploaded_files.append({
                         "name": current_file["final_name"],
                         "size": current_file["bytes_written"],
@@ -630,6 +856,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                 except Exception as e:
                     if os.path.exists(current_file["temp_path"]):
                         os.remove(current_file["temp_path"])
+                    monitor_service.end_transfer(transfer_id, "failed", str(e))
                     uploaded_files.append({
                         "name": current_file["final_name"],
                         "success": False,
@@ -653,6 +880,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
                     os.remove(current_file["temp_path"])
                 except Exception:
                     pass
+            monitor_service.end_transfer(transfer_id, "failed", str(e))
             self.send_error_json(f"Streaming upload failed: {e}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
@@ -668,6 +896,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             })
 
     def handle_delete(self):
+        client_ip = self.get_client_ip()
         data = self.read_json_body()
         if not data:
             self.send_error_json("Invalid JSON body")
@@ -689,7 +918,6 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("File not found on server", status=HTTPStatus.NOT_FOUND)
             return
 
-        # Check if file is locked by an ongoing conversion or merge task
         if audio_service.is_file_locked(filename):
             self.send_error_json(
                 f"Cannot delete '{filename}': File is currently being processed by an active task.",
@@ -698,16 +926,15 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         try:
+            file_size = os.path.getsize(target_path)
             os.remove(target_path)
+            db_service.log_event("file_deleted", client_ip, filename=filename, file_size=file_size, status="info")
             self.send_json({"success": True, "message": f"Deleted {filename}", "deleted": filename})
         except Exception as e:
             self.send_error_json(f"Failed to delete file: {e}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_rename(self):
-        """
-        Rename audio file preserving original extension.
-        Prevents path traversal, duplicate names, and renaming locked files.
-        """
+        client_ip = self.get_client_ip()
         data = self.read_json_body()
         if not data:
             self.send_error_json("Invalid JSON body")
@@ -734,13 +961,10 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             )
             return
 
-        # Preserve the original audio format extension!
         old_base, old_ext = os.path.splitext(old_name)
         new_base, new_ext = os.path.splitext(new_name)
 
-        # If user included an extension in new_name, strip it if different or keep base
         sanitized_base = sanitize_filename(new_base if new_ext.lower() == old_ext.lower() else new_name)
-        # Strip any accidental extension in sanitized_base
         sanitized_base = os.path.splitext(sanitized_base)[0]
 
         if not sanitized_base:
@@ -760,6 +984,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
 
         try:
             os.rename(old_path, new_path)
+            db_service.log_event("file_renamed", client_ip, filename=final_new_name, status="info", error_details=f"From: {old_name}")
             self.send_json({
                 "success": True,
                 "message": f"Renamed to {final_new_name}",
@@ -770,9 +995,6 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_error_json(f"Failed to rename file: {e}", status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def handle_convert(self):
-        """
-        Submit background audio conversion / optimization task.
-        """
         if not audio_service.is_available():
             self.send_error_json(
                 "FFmpeg is not available on this server. Please install FFmpeg (e.g., 'brew install ffmpeg' on macOS).",
@@ -791,7 +1013,6 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
         sample_rate = data.get("sample_rate")
         channels = data.get("channels")
         overwrite = bool(data.get("overwrite", False))
-
         target_custom = data.get("target_filename", "").strip()
 
         if not src_filename:
@@ -846,9 +1067,6 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
             self.send_error_json(str(e), status=HTTPStatus.BAD_REQUEST)
 
     def handle_merge(self):
-        """
-        Submit background audio merge task (with concat, silence, or crossfade).
-        """
         if not audio_service.is_available():
             self.send_error_json(
                 "FFmpeg is not available on this server. Please install FFmpeg (e.g., 'brew install ffmpeg' on macOS).",
@@ -879,7 +1097,6 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
         else:
             target_name = f"merged_{int(time.time())}{out_ext}"
 
-        # Never overwrite existing file during merge
         target_name = get_unique_filename(MUSIC_DIR, target_name)
 
         options = {
@@ -909,7 +1126,7 @@ class LocalMusicRequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 # ----------------------------------------------------------------------
-# Multi-threaded HTTP Server
+# Multi-threaded HTTP Server with Graceful Shutdown
 # ----------------------------------------------------------------------
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
@@ -929,43 +1146,39 @@ def print_banner(port, interfaces):
                 break
 
     car_url = f"http://{rec_ip}:{port}/"
-    admin_url = f"http://{rec_ip}:{port}/admin"
+    dash_url = f"http://{rec_ip}:{port}/dashboard"
     studio_url = f"http://{rec_ip}:{port}/studio"
-    local_admin_url = f"http://localhost:{port}/admin"
-    local_studio_url = f"http://localhost:{port}/studio"
+    admin_url = f"http://{rec_ip}:{port}/admin"
+    local_dash_url = f"http://localhost:{port}/dashboard"
 
     ffmpeg_status = "Available (Ready)" if audio_service.is_available() else "NOT FOUND (Install via 'brew install ffmpeg')"
 
-    border = "=" * 66
+    border = "=" * 68
     print(border)
-    print("   LOCAL MUSIC DROP SERVER & AUDIO STUDIO (macOS & Car)")
+    print("   LOCAL MUSIC SERVER, AUDIO STUDIO & NETWORK DASHBOARD")
     print(border)
     print(f" * Status         : Running")
     print(f" * Port           : {port}")
+    print(f" * Database       : SQLite (music_server.db in WAL mode)")
     print(f" * FFmpeg Engine  : {ffmpeg_status}")
     print(f" * Music Folder   : {MUSIC_DIR}")
     print()
     print(" [Access URLs]")
     print(f" -> Android Car Screen : {car_url}")
+    print(f" -> Network Dashboard  : {dash_url}")
+    print(f"                         {local_dash_url}")
     print(f" -> Audio Studio (Mac) : {studio_url}")
-    print(f"                         {local_studio_url}")
-    print(f" -> Mac Upload/Admin   : {admin_url}")
-    print(f"                         {local_admin_url}")
+    print(f" -> Music Admin / DL   : {admin_url}")
     print()
     print(" [Detected Network Interfaces]")
     for desc, ip, is_wifi in interfaces:
         mark = " <-- [RECOMMENDED FOR CAR HOTSPOT]" if ip == rec_ip and ip != "127.0.0.1" else ""
         print(f"   * {desc.ljust(18)}: {ip}{mark}")
     print()
-    print(" [Quick Instructions]")
-    print(" 1. Connect Mac and Android Head Unit to the same Wi-Fi Hotspot.")
-    print(f" 2. On Mac: Manage songs at '{local_admin_url}', merge at '{local_studio_url}'.")
-    print(f" 3. On Car: Open Chrome and visit '{car_url}'.")
-    print(" 4. Tap the large [DOWNLOAD] button next to any song.")
-    print()
-    print(" [Security Notice]")
-    print(" ! This server is designed strictly for private Local Hotspot use.")
-    print(" ! DO NOT expose port 8000 or this server to the public Internet.")
+    print(" [Security & Access Notice]")
+    print(" - Admin PIN: 8888 | Password: admin (changeable in DB)")
+    print(" - Car View ('/') is 100% Zero-JS and requires no authentication.")
+    print(" - Private Wi-Fi Hotspot only. DO NOT expose port 8000 to public internet.")
     print(border)
     sys.stdout.flush()
 
@@ -986,8 +1199,13 @@ def run_server(port=DEFAULT_PORT):
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n[Shutting Down] Local Music Server stopped cleanly.")
+        print("\n[Shutting Down] Closing server cleanly...")
+    finally:
+        db_service.close_session(SERVER_SESSION_ID)
+        db_service.log_event("server_stopped", "127.0.0.1", status="info")
+        monitor_service.shutdown()
         httpd.server_close()
+        print("[Shutdown Complete] Local Music Server stopped.")
         sys.exit(0)
 
 

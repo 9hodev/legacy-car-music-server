@@ -54,8 +54,9 @@ def find_binary(name):
 
 
 class AudioService:
-    def __init__(self, music_dir, max_workers=2):
+    def __init__(self, music_dir, max_workers=2, db_service=None):
         self.music_dir = music_dir
+        self.db_service = db_service
         self.ffmpeg_bin = find_binary("ffmpeg")
         self.ffprobe_bin = find_binary("ffprobe")
         self.max_workers = max_workers
@@ -246,6 +247,8 @@ class AudioService:
         temp_target_path = os.path.join(self.music_dir, f".tmp_conv_{task_id}_{target_filename}")
 
         self._update_task(task_id, status="processing", progress=5.0)
+        if self.db_service:
+            self.db_service.log_event("audio_convert_started", "server", filename=source_filename, status="info")
 
         try:
             cmd = build_convert_command(self.ffmpeg_bin, source_path, temp_target_path, options)
@@ -296,6 +299,8 @@ class AudioService:
                 reduction_percent=reduction,
                 completed_at=time.time()
             )
+            if self.db_service:
+                self.db_service.log_event("audio_convert_completed", "server", filename=target_filename, file_size=out_size, status="success")
 
         except Exception as e:
             if os.path.isfile(temp_target_path):
@@ -309,6 +314,8 @@ class AudioService:
                 error=str(e),
                 completed_at=time.time()
             )
+            if self.db_service:
+                self.db_service.log_event("audio_convert_failed", "server", filename=source_filename, status="failed", error_details=str(e)[:200])
         finally:
             self._unlock_files([source_filename, target_filename])
 
@@ -377,6 +384,8 @@ class AudioService:
         temp_target_path = os.path.join(self.music_dir, f".tmp_merge_{task_id}_{target_filename}")
 
         self._update_task(task_id, status="processing", progress=5.0)
+        if self.db_service:
+            self.db_service.log_event("audio_merge_started", "server", filename=target_filename, status="info")
 
         try:
             cmd = build_merge_command(self.ffmpeg_bin, input_paths, temp_target_path, options, track_durations)
@@ -421,6 +430,8 @@ class AudioService:
                 duration=meta.get("duration", est_total_duration),
                 completed_at=time.time()
             )
+            if self.db_service:
+                self.db_service.log_event("audio_merge_completed", "server", filename=target_filename, file_size=out_size, status="success")
 
         except Exception as e:
             if os.path.isfile(temp_target_path):
@@ -434,6 +445,8 @@ class AudioService:
                 error=str(e),
                 completed_at=time.time()
             )
+            if self.db_service:
+                self.db_service.log_event("audio_merge_failed", "server", filename=target_filename, status="failed", error_details=str(e)[:200])
         finally:
             self._unlock_files(all_locked)
 

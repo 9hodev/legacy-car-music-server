@@ -1,58 +1,56 @@
-# Local Music Drop Server & Audio Studio 🎵🚗🎛️
+# Local Music Drop Server, Audio Studio & Network Dashboard 🎵🚗🎛️📊
 
-> **A zero-dependency HTTP Music Server & Audio Studio for macOS & older Android Head Units over Wi-Fi Hotspot.**
-> ส่งไฟล์เพลงและประมวลผลเสียง (Convert, Optimize, Merge, Crossfade) จาก Mac ไปยังจอรถยนต์ Android รุ่นเก่าผ่าน Wi-Fi Hotspot โดยไม่ต้องต่อเน็ต และไม่พึ่งพา Cloud
-
----
-
-## 📌 สรุปคุณสมบัติใหม่ (Audio Studio Upgrade)
-
-1. **File Management: Rename (เปลี่ยนชื่อไฟล์อย่างปลอดภัย):**
-   - ปุ่ม **Rename** พร้อมหน้าต่าง Modal
-   - ปรับเปลี่ยนชื่อไฟล์ได้โดยยังคงนามสกุลไฟล์เสียงเดิมไว้เสมอ (Preserve original extension)
-   - ป้องกัน Path Traversal, ป้องกันชื่อซ้ำ, รองรับภาษาไทย/Unicode และช่องว่าง
-   - **File Locking:** ป้องกันการเปลี่ยนชื่อหรือลบไฟล์ที่กำลังอยู่ในกระบวนการ Convert/Merge
-2. **Audio Optimization / Conversion (บีบอัดและแปลงไฟล์เสียง):**
-   - รองรับ Input: `MP3`, `WAV`, `M4A`, `AAC`, `FLAC`, `OGG`, `OPUS`
-   - รองรับ Output: `MP3`, `M4A/AAC`, `OGG`, `WAV`, `FLAC`
-   - ปรับ Bitrate (320k, 256k, 192k, 128k, 96k), Sample rate (44.1kHz, 48kHz), Channels (Stereo, Mono)
-   - ประมวลผลแบบ Background Task ผ่าน FFmpeg (ไม่บล็อก HTTP Server)
-   - แสดง Progress Bar เรียลไทม์ คำนวณเปอร์เซ็นต์การลดขนาดไฟล์ (File Size Reduction %)
-   - แจ้งเตือนกรณีแปลงไฟล์ Lossy &harr; Lossy เพื่อแจ้งเตือนการลดทอนของคุณภาพเสียง
-   - ปลอดภัย: ไม่เขียนทับไฟล์เดิมเว้นแต่ผู้ใช้จะระบุอย่างชัดเจน (Default preserve original)
-3. **Audio Merge Studio (`/studio`):**
-   - หน้าเฉพาะสำหรับรวมไฟล์เพลงหลายแทร็ก (Mixed Format: เช่น MP3 + WAV + M4A + FLAC + OGG)
-   - **Queue Drag & Drop:** จัดเรียงลำดับเพลงในคิวได้อิสระด้วยการลากวาง หรือกดปุ่มเลื่อนขึ้น/ลง
-   - **Normalized Decoding:** ใช้ FFmpeg `filter_complex` แปลงสตรีมเสียงทั้งหมดให้มี Sample rate และ Channel layout เดียวกันก่อนรวมเสียง (ไม่ต่อดิบแบบ Byte Concatenation)
-   - **Seamless Concat & Silence Gap:** แทรกช่วงเวลาเงียบ (Silence 1s, 2s, 3s, 5s) คั่นระหว่างแทร็กได้
-   - **Acrossfade Transitions:** เฟดเสียงเชื่อมต่อระหว่างเพลง (Crossfade 1s - 5s) อย่างนุ่มนวล
-   - บันทึกไฟล์ที่รวมแล้วลงโฟลเดอร์ `music/` ทันที พร้อมปุ่มดาวน์โหลดและเปิดดูบนจอรถยนต์
-4. **รักษาความเข้ากันได้ 100% กับจอรถยนต์ Android รุ่นเก่า (Android 4.4 – 8.0):**
-   - หน้าจอรถยนต์ (`/`) ยังคงทำงานแบบ **Zero-JS** ด้วย Direct HTML Anchor `<a href="/download/..." download>`
-   - ปุ่มดาวน์โหลดขนาดใหญ่พิเศษ คอนทราสต์สูง อ่านง่ายและกดง่ายบนจอสัมผัส
+> **A zero-dependency HTTP Music Server, Audio Studio & Network Dashboard for macOS & older Android Head Units over Wi-Fi Hotspot.**
+> ส่งไฟล์เพลง ประมวลผลเสียง (Convert, Optimize, Merge, Crossfade) และตรวจสอบเครือข่าย/อุปกรณ์ (Device Registry, Live Throughput, Activity Logs) จาก Mac ไปยังจอรถยนต์ Android รุ่นเก่าผ่าน Wi-Fi Hotspot
 
 ---
 
-## 🔧 การติดตั้ง FFmpeg (FFmpeg Installation)
+## 📌 สรุปคุณสมบัติใหม่: Network Dashboard & Device Monitoring
 
-ระบบเสียงของ Audio Studio ประมวลผลบนเครื่องเซิร์ฟเวอร์ Mac/Host โดยใช้ FFmpeg:
+1. **Network Dashboard (`/dashboard`):**
+   - **Network Overview:** แสดงสถานะเซิร์ฟเวอร์, IP & Port, Server Uptime, จำนวนอุปกรณ์ Online/Offline, จำนวน Active Connections, จำนวน Active File Transfers (แยก Upload/Download), สปีด Throughput แบบเรียลไทม์ และปริมาณข้อมูลรวมที่รับ-ส่ง
+   - **Live Transfers:** ติดตามความคืบหน้าการส่งไฟล์ (Progress %, Transfer Speed, ETA) โดยไม่นับรวม Background Polling หรือ Heartbeat
+   - **Server Controls:** คัดลอก URL เซิร์ฟเวอร์, จัดการเซสชัน Admin, และสั่งปิดเซิร์ฟเวอร์อย่างปลอดภัย (Graceful Shutdown)
+2. **Device Discovery & Registry:**
+   - **Persistent Device ID:** สร้างและจดจำ Device ID เฉพาะสำหรับแต่ละอุปกรณ์ (เก็บใน `localStorage` หรือส่งผ่าน Header)
+   - **Client Heartbeat Mechanism:** ส่งสัญญาณ Heartbeat ทุก 10–15 วินาที หากไม่มีสัญญาณเกิน 35–45 วินาที ระบบจะเปลี่ยนสถานะเป็น Offline อัตโนมัติในฐานข้อมูล
+   - **Device Type & Activity:** แยกประเภทอุปกรณ์ (Desktop, Mobile, Car Head Unit) และแสดงกิจกรรมปัจจุบัน (Idle, Uploading, Downloading, Playing Audio)
+   - **Device Revocation:** แอดมินสามารถเพิกถอน (Revoke) การเข้าถึงของอุปกรณ์ที่ไม่พึงประสงค์ได้
+3. **SQLite Activity & Security Logging (`music_server.db`):**
+   - ฐานข้อมูล SQLite ในโหมด Write-Ahead Logging (WAL) เพื่อรองรับการทำงานพร้อมกันหลายเธรด
+   - บันทึกประวัติ: Server Started/Stopped, Device Registered, Device Online/Offline, Upload/Download, File Renamed/Deleted, Audio Convert/Merge, และ Auth Success/Failed
+   - **Log Filtering & Pagination:** ค้นหาตามชื่อไฟล์, IP, อุปกรณ์, หรือกรองตามประเภทเหตุการณ์ (Event Type) พร้อมระบบแบ่งหน้า (Pagination)
+   - **Export CSV:** ดาวน์โหลดบันทึกทั้งหมดเป็นไฟล์ CSV ได้ทันที
+   - ข้อมูลบันทึกและรายการอุปกรณ์คงอยู่ถาวรแม้ปิดเปิดเซิร์ฟเวอร์ใหม่ (Survives Server Restarts)
+4. **Device Security & Admin Authentication:**
+   - ระบบล็อกอิน Admin ด้วย PIN (ค่าเริ่มต้น: `8888`) หรือ Password (`admin`)
+   - รหัสผ่านถูกเข้ารหัสด้วย PBKDF2-HMAC-SHA256 (100,000 rounds) ร่วมกับ Salt แบบสุ่ม
+   - เปรียบเทียบรหัสผ่านและโทเค็นด้วย Constant-time comparison (`hmac.compare_digest`) ป้องกัน Timing Attacks
+   - **Rate Limiting:** จำกัดการล็อกอินผิดพลาดสูงสุด 5 ครั้งต่อ 5 นาที หากเกินจะบล็อก IP นั้นเป็นเวลา 60 วินาที
+   - ไม่บันทึกรหัสผ่านหรือโทเค็นเป็น Plaintext ใน Log
+5. **รักษาความเข้ากันได้ 100% กับจอรถยนต์ Android รุ่นเก่า (Android 4.4 – 8.0):**
+   - หน้าจอรถยนต์ (`/`) และการดาวน์โหลด (`/download/...`) เข้าถึงได้โดยตรง ไม่ต้องล็อกอิน ไม่ต้องใช้ JavaScript
+   - รองรับการ Resume การดาวน์โหลดผ่าน HTTP Range Header
 
-### บน macOS (แนะนำผ่าน Homebrew):
-```bash
-brew install ffmpeg
-```
+---
 
-### บน Windows:
-```powershell
-winget install Gyan.FFmpeg
-```
+## ⚠️ ข้อจำกัดสำคัญของระบบเครือข่าย (Important Network Limitations)
 
-### บน Linux (Ubuntu/Debian):
-```bash
-sudo apt update && sudo apt install -y ffmpeg
-```
+> 💡 **โปรดทราบข้อจำกัดทางเทคนิคของเครือข่าย Wi-Fi และ HTTP:**
+> 1. **A normal HTTP server cannot enumerate every device connected to the same Wi-Fi network:** HTTP Server ปกติไม่สามารถสแกนหรือตรวจจับทุกอุปกรณ์ที่เกาะอยู่ใน Wi-Fi เดียวกันได้โดยที่อุปกรณ์นั้นไม่ได้ส่ง Request เข้ามายังเซิร์ฟเวอร์
+> 2. **Device discovery requires explicit client registration or LAN communication:** การระบุตัวตนของอุปกรณ์ (Device Registry) ต้องอาศัยการส่งสัญญาณลงทะเบียนจากฝั่ง Client ผ่าน Browser หรือแอปพลิเคชัน
+> 3. **Hotspot client isolation may prevent device-to-device communication:** โหมด Hotspot บนมือถือหรือ Router บางรุ่นอาจเปิดฟีเจอร์ "AP/Client Isolation" ซึ่งจะบล็อกไม่ให้อุปกรณ์สองเครื่องคุยกันโดยตรง (หากพบปัญหาจอรถมองไม่เห็น Mac ให้ตรวจสอบการตั้งค่า Hotspot)
+> 4. **A device can appear offline because it is sleeping or temporarily disconnected:** อุปกรณ์อาจถูกระบุว่า "Offline" หากหน้าจอดับ เข้าสู่โหมด Sleep หรือสัญญาณ Wi-Fi หลุดชั่วคราว
+> 5. **An HTTP connection does not necessarily represent a persistent online device:** การเชื่อมต่อ HTTP เป็นแบบ Request-Response (Stateless) การที่ Socket เปิดหรือปิดไม่ได้หมายความว่าอุปกรณ์นั้นเปิดหรือปิดอยู่ตลอดเวลา ระบบจึงใช้ Heartbeat และ `last_seen` ในการประเมินสถานะออนไลน์
 
-*(หมายเหตุ: หากยังไม่ได้ติดตั้ง FFmpeg เซิร์ฟเวอร์ยังคงสามารถรันฟังก์ชัน อัปโหลด, ดาวน์โหลด, และสตรีมมิ่งเพลงไปยังจอรถยนต์ได้ตามปกติ)*
+---
+
+## 🔧 การติดตั้ง FFmpeg (สำหรับ Audio Studio)
+
+ระบบประมวลผลเสียงใช้ FFmpeg ติดตั้งได้ง่ายๆ:
+- **macOS:** `brew install ffmpeg`
+- **Windows:** `winget install Gyan.FFmpeg`
+- **Linux:** `sudo apt install -y ffmpeg`
 
 ---
 
@@ -64,99 +62,78 @@ sudo apt update && sudo apt install -y ffmpeg
 python3 server.py
 ```
 
-*(หรือระบุพอร์ต เช่น `python3 server.py 8080`)*
-
-เมื่อเริ่มทำงาน หน้าจอ Terminal จะแสดงข้อมูลการเข้าถึง:
+หน้าจอ Terminal จะแสดงข้อมูลการเข้าถึงทุกส่วน:
 
 ```text
-==================================================================
-   LOCAL MUSIC DROP SERVER & AUDIO STUDIO (macOS & Car)
-==================================================================
+====================================================================
+   LOCAL MUSIC SERVER, AUDIO STUDIO & NETWORK DASHBOARD
+====================================================================
  * Status         : Running
  * Port           : 8000
+ * Database       : SQLite (music_server.db in WAL mode)
  * FFmpeg Engine  : Available (Ready)
  * Music Folder   : /Users/.../music
 
  [Access URLs]
  -> Android Car Screen : http://192.168.43.50:8000/
+ -> Network Dashboard  : http://192.168.43.50:8000/dashboard
+                         http://localhost:8000/dashboard
  -> Audio Studio (Mac) : http://192.168.43.50:8000/studio
-                         http://localhost:8000/studio
- -> Mac Upload/Admin   : http://192.168.43.50:8000/admin
-                         http://localhost:8000/admin
-==================================================================
+ -> Music Admin / DL   : http://192.168.43.50:8000/admin
+====================================================================
 ```
 
 ---
 
-## 📡 สรุป API Endpoints ทั้งหมด
+## 📡 สรุป API Endpoints
 
-### 1. หน้าเว็บหลัก (Pages)
-- `GET /` หรือ `/index.html`: หน้าดาวน์โหลดสำหรับจอรถยนต์ (Server-rendered HTML list, Zero-JS ready)
-- `GET /admin`: หน้าอัปโหลดและจัดการไฟล์ (Drag & Drop, Rename, Optimize)
-- `GET /studio`: หน้า Audio Merge Studio (จัดคิวเพลง, รวมไฟล์, ทำ Crossfade)
+### 1. หน้าเว็บ (Pages)
+- `GET /` หรือ `/index.html`: Car Download Page (Zero-JS ready)
+- `GET /dashboard`: Network Dashboard & Device Monitoring
+- `GET /admin`: Music Upload & File Management
+- `GET /studio`: Audio Merge & Crossfade Studio
 
-### 2. ข้อมูลและดาวน์โหลด (Data & Downloads)
-- `GET /api/files`: ดึงรายการไฟล์เสียง JSON (เพิ่ม Query `?meta=1` เพื่อดึง Duration และสถานะ Lock)
-- `GET /api/tasks/<task_id>`: ตรวจสอบสถานะการแปลง/รวมไฟล์เสียง (Progress %, สถานะ, ขนาดไฟล์, ข้อผิดพลาด)
-- `GET /download/<filename>`: สตรีมมิ่งและดาวน์โหลดไฟล์เสียง Chunked 64KB (รองรับ `Range: bytes=start-end`)
+### 2. แดชบอร์ดและอุปกรณ์ (Dashboard & Devices)
+- `GET /api/dashboard/stats`: ข้อมูลสถิติเซิร์ฟเวอร์, Uptime, Throughput, และ Live Transfers
+- `GET /api/devices`: รายการอุปกรณ์ที่ลงทะเบียนและประวัติการเชื่อมต่อ
+- `POST /api/devices/register`: ลงทะเบียนอุปกรณ์ (`{"device_id": "...", "name": "...", "device_type": "..."}`)
+- `POST /api/devices/heartbeat`: อัปเดตสถานะออนไลน์ (`{"device_id": "...", "current_activity": "..."}`)
+- `POST /api/devices/revoke`: เพิกถอนสิทธิ์อุปกรณ์ (ต้องใช้ Admin Auth)
 
-### 3. การประมวลผลและการจัดการ (Actions)
-- `POST /api/upload`: อัปโหลดไฟล์เสียงแบบสตรีมมิ่งลงดิสก์โดยตรง (รองรับไฟล์ 100 MB+)
-- `POST /api/rename`: เปลี่ยนชื่อไฟล์ (คงนามสกุลเดิม, ป้องกันชื่อซ้ำ, ตรวจสอบ Active Lock)
-  ```json
-  { "old_name": "song.wav", "new_name": "my_favorite_track.wav" }
-  ```
+### 3. บันทึกประวัติ (Logs & Security)
+- `GET /api/logs`: ดึงรายการ Log แบบแบ่งหน้าพร้อมตัวกรอง (`?page=1&limit=20&search=...&event_type=...`)
+- `GET /api/logs/export`: ส่งออก Log เป็นไฟล์ `.csv`
+- `POST /api/logs/clear`: ล้างประวัติ Log ทั้งหมด (ต้องใช้ Admin Auth)
+- `POST /api/auth/login`: ตรวจสอบ PIN/Password (`{"secret": "8888"}`) รับ Session Token
+- `POST /api/auth/logout`: ออกจากระบบเซสชันแอดมิน
+- `GET /api/auth/status`: ตรวจสอบสถานะการยืนยันตัวตนในปัจจุบัน
+
+### 4. การจัดการไฟล์และแปลงเสียง (Files & Audio Processing)
+- `GET /api/files`: รายการไฟล์เสียง JSON (`?meta=1` เพื่อดูความยาว)
+- `GET /download/<filename>`: สตรีมมิ่งดาวน์โหลดไฟล์เสียง Chunked 64KB
+- `POST /api/upload`: อัปโหลดไฟล์เสียงสตรีมมิ่ง (รองรับ 100MB+)
+- `POST /api/rename`: เปลี่ยนชื่อไฟล์โดยคงนามสกุลเดิม
 - `POST /api/convert`: สั่งแปลงไฟล์หรือบีบอัดเสียงใน Background
-  ```json
-  {
-    "source_filename": "track.wav",
-    "output_format": "mp3",
-    "target_filename": "track_opt.mp3",
-    "bitrate": "192k",
-    "sample_rate": 44100,
-    "channels": 2,
-    "overwrite": false
-  }
-  ```
-- `POST /api/merge`: สั่งรวมไฟล์เสียงหลากฟอร์แมต (Mixed Format Merge)
-  ```json
-  {
-    "source_filenames": ["intro.wav", "song.mp3", "outro.m4a"],
-    "target_filename": "full_mix.mp3",
-    "output_format": "mp3",
-    "bitrate": "192k",
-    "crossfade": 2.0,
-    "silence": 0.0
-  }
-  ```
-- `POST /api/delete`: ลบไฟล์เสียงออกจากเซิร์ฟเวอร์ (ป้องกันการลบไฟล์ที่กำลังถูกประมวลผล)
-  ```json
-  { "filename": "unwanted_song.mp3" }
-  ```
-
----
-
-## 🔒 สถาปัตยกรรมความปลอดภัย (Security & Reliability Architecture)
-
-1. **Zero Shell Execution (`shell=False`):** คำสั่ง FFmpeg ทุกคำสั่งสร้างผ่าน List Arguments โดยไม่มีการเรียก Shell ป้องกันการถูกโจมตีด้วย OS Command Injection 100%
-2. **Whitelist Profile Validation:** ไม่รับ Custom CLI String จากผู้ใช้ ยอมรับเฉพาะพารามิเตอร์ที่ผ่าน Whitelist เท่านั้น
-3. **Strict Path Traversal Protection:** ตรวจสอบด้วย `os.path.commonpath()` และตัด Directory Component ทุกครั้ง
-4. **File Locking (`locked_files`):** ไฟล์ที่กำลังถูกเปิดอ่านหรือเขียนโดย Background Task จะถูกล็อค ห้ามลบหรือเปลี่ยนชื่อจนกว่างานจะเสร็จ
-5. **Memory Cap (O(1) RAM):** ทั้งการ Upload และ Download ใช้ Buffer 64 KB หน่วยความจำไม่บวมแม้ส่งไฟล์ขนาดใหญ่ 100 MB หรือระดับ GB
-6. **Task ThreadPool Cap:** จำกัดการทำงานเบื้องหลังสูงสุด 2 งานพร้อมกัน เพื่อป้องกันการใช้ CPU หรือความร้อนบน Mac สูงเกินไป
+- `POST /api/merge`: สั่งรวมไฟล์เสียงหลากฟอร์แมต (Concat, Silence, Crossfade)
+- `POST /api/delete`: ลบไฟล์เสียงออกจากเซิร์ฟเวอร์
+- `GET /api/tasks/<task_id>`: ติดตามความคืบหน้าของงานแปลง/รวมเสียง
 
 ---
 
 ## 🧪 การทดสอบระบบ (Automated Tests)
 
-รันชุดทดสอบความเข้ากันได้และการประมวลผลเสียง 10 รายการ:
+1. **ชุดทดสอบแดชบอร์ดและเครือข่าย (11 การทดสอบ):**
+   ```bash
+   python3 test_dashboard_monitoring.py
+   ```
+   *(ทดสอบการเชื่อมต่อพร้อมกัน, Device Heartbeat, Offline Timeout, Log บันทึก Upload/Download, Interrupted Transfer, Server Restart Persistence, Auth Rate Limiting, และความเข้ากันได้กับจอรถ)*
 
-```bash
-python3 test_audio_studio.py
-```
+2. **ชุดทดสอบการประมวลผลเสียง FFmpeg (10 การทดสอบ):**
+   ```bash
+   python3 test_audio_studio.py
+   ```
 
-รันชุดทดสอบ Integration พื้นฐาน (Streaming Upload 100MB, Range Header, Security Traversal):
-
-```bash
-python3 run_integration_test.py
-```
+3. **ชุดทดสอบ Integration พื้นฐาน:**
+   ```bash
+   python3 run_integration_test.py
+   ```
