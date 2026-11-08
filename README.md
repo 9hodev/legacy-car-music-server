@@ -1,70 +1,105 @@
 # Local Music Drop Server, Audio Studio & Network Dashboard 🎵🚗🎛️📊
 
-> **A zero-dependency HTTP Music Server, Audio Studio & Network Dashboard for macOS & older Android Head Units over Wi-Fi Hotspot.**
-> ส่งไฟล์เพลง ประมวลผลเสียง (Convert, Optimize, Merge, Crossfade) และตรวจสอบเครือข่าย/อุปกรณ์ (Device Registry, Live Throughput, Activity Logs) จาก Mac ไปยังจอรถยนต์ Android รุ่นเก่าผ่าน Wi-Fi Hotspot
+> **A zero-dependency local HTTP music server, audio processing studio, and network monitoring dashboard designed for older Android car head units over an offline Wi-Fi hotspot.**
 
 ---
 
-## 📌 สรุปคุณสมบัติใหม่: Network Dashboard & Device Monitoring
+## 💡 The Story: Why This Project Exists
 
-1. **Network Dashboard (`/dashboard`):**
-   - **Network Overview:** แสดงสถานะเซิร์ฟเวอร์, IP & Port, Server Uptime, จำนวนอุปกรณ์ Online/Offline, จำนวน Active Connections, จำนวน Active File Transfers (แยก Upload/Download), สปีด Throughput แบบเรียลไทม์ และปริมาณข้อมูลรวมที่รับ-ส่ง
-   - **Live Transfers:** ติดตามความคืบหน้าการส่งไฟล์ (Progress %, Transfer Speed, ETA) โดยไม่นับรวม Background Polling หรือ Heartbeat
-   - **Server Controls:** คัดลอก URL เซิร์ฟเวอร์, จัดการเซสชัน Admin, และสั่งปิดเซิร์ฟเวอร์อย่างปลอดภัย (Graceful Shutdown)
-2. **Device Discovery & Registry:**
-   - **Persistent Device ID:** สร้างและจดจำ Device ID เฉพาะสำหรับแต่ละอุปกรณ์ (เก็บใน `localStorage` หรือส่งผ่าน Header)
-   - **Client Heartbeat Mechanism:** ส่งสัญญาณ Heartbeat ทุก 10–15 วินาที หากไม่มีสัญญาณเกิน 35–45 วินาที ระบบจะเปลี่ยนสถานะเป็น Offline อัตโนมัติในฐานข้อมูล
-   - **Device Type & Activity:** แยกประเภทอุปกรณ์ (Desktop, Mobile, Car Head Unit) และแสดงกิจกรรมปัจจุบัน (Idle, Uploading, Downloading, Playing Audio)
-   - **Device Revocation:** แอดมินสามารถเพิกถอน (Revoke) การเข้าถึงของอุปกรณ์ที่ไม่พึงประสงค์ได้
-3. **SQLite Activity & Security Logging (`music_server.db`):**
-   - ฐานข้อมูล SQLite ในโหมด Write-Ahead Logging (WAL) เพื่อรองรับการทำงานพร้อมกันหลายเธรด
-   - บันทึกประวัติ: Server Started/Stopped, Device Registered, Device Online/Offline, Upload/Download, File Renamed/Deleted, Audio Convert/Merge, และ Auth Success/Failed
-   - **Log Filtering & Pagination:** ค้นหาตามชื่อไฟล์, IP, อุปกรณ์, หรือกรองตามประเภทเหตุการณ์ (Event Type) พร้อมระบบแบ่งหน้า (Pagination)
-   - **Export CSV:** ดาวน์โหลดบันทึกทั้งหมดเป็นไฟล์ CSV ได้ทันที
-   - ข้อมูลบันทึกและรายการอุปกรณ์คงอยู่ถาวรแม้ปิดเปิดเซิร์ฟเวอร์ใหม่ (Survives Server Restarts)
-4. **Device Security & Admin Authentication:**
-   - ระบบล็อกอิน Admin ด้วย PIN หรือ Password ที่กำหนดค่าได้อย่างง่ายดายและปลอดภัยผ่าน `config.json` (หรือ Environment Variables: `ADMIN_PIN`, `ADMIN_PASSWORD`)
-   - **Safe for Public GitHub:** ไฟล์ `config.json` ที่เก็บรหัสผ่านจริงถูกระบุไว้ใน `.gitignore` จึงไม่มีการรั่วไหลขึ้น GitHub แน่นอน โดยมี `config.example.json` เป็นแม่แบบให้ใช้งาน
-   - **Dashboard Lock Screen:** หน้า `/dashboard` ถูกล็อกไว้ด้วยหน้าต่างยืนยันตัวตน Admin โดยอัตโนมัติ จะไม่แสดงข้อมูลเครือข่าย อุปกรณ์ หรือประวัติ Log จนกว่าจะกรอกรหัสผ่านถูกต้อง
-   - รหัสผ่านถูกเข้ารหัสด้วย PBKDF2-HMAC-SHA256 (100,000 rounds) ร่วมกับ Salt แบบสุ่ม
-   - เปรียบเทียบรหัสผ่านและโทเค็นด้วย Constant-time comparison (`hmac.compare_digest`) ป้องกัน Timing Attacks
-   - **Rate Limiting:** จำกัดการล็อกอินผิดพลาดสูงสุด 5 ครั้งต่อ 5 นาที หากเกินจะบล็อก IP นั้นเป็นเวลา 60 วินาที
-   - ไม่บันทึกรหัสผ่านหรือโทเค็นเป็น Plaintext ใน Log หรือหน้าเว็บเด็ดขาด
-5. **รักษาความเข้ากันได้ 100% กับจอรถยนต์ Android รุ่นเก่า (Android 4.4 – 8.0):**
-   - หน้าจอรถยนต์ (`/`) และการดาวน์โหลด (`/download/...`) เข้าถึงได้โดยตรง ไม่ต้องล็อกอิน ไม่ต้องใช้ JavaScript
-   - รองรับการ Resume การดาวน์โหลดผ่าน HTTP Range Header
+Modern file-sharing tools assume modern devices with fast processors, gigabytes of RAM, and cloud internet access. However, millions of vehicles still run **older aftermarket Android head units** (Android 4.4 KitKat through Android 8.0 Oreo) that suffer from severe real-world limitations:
+
+1. **No Accessible USB Port:** 
+   In many car installations, USB cables are routed behind the dashboard, broken, only support 0.5A charging, or are dedicated exclusively to a reverse camera or proprietary dashcam.
+2. **Extremely Constrained Hardware:**
+   Older head units typically have 512 MB to 1 GB of RAM and weak quad-core processors. Heavy file-sharing apps (AirDroid, Send Anywhere, Google Drive, Telegram, Nextcloud) crash, fail to install, or cause the head unit to freeze while driving.
+3. **No Google Play Services (GMS):**
+   Most car infotainment systems run stripped-down Android ROMs where Google Play Store does not work, and sideloading modern APKs fails due to incompatible API levels.
+4. **Offline / No Internet Connection:**
+   In a moving vehicle, internet connectivity is often limited to a portable phone hotspot or may have no cellular service at all.
+
+### 🎯 The Solution
+
+**Local Music Drop Server** turns your Mac, PC, or laptop into a lightweight, local web server operating completely offline over your vehicle's Wi-Fi hotspot:
+
+- **Zero App Installation:** The car head unit needs **NO** app installed. Just open the built-in Android browser or Chrome and navigate to `http://<LAPTOP_IP>:8000/`.
+- **Zero JavaScript on the Car Screen:** The car download page is rendered in **100% pure semantic HTML5**. It works flawlessly on obsolete browsers from 2013 without crashing or executing client-side scripts.
+- **Heavy Lifting Stays on the Laptop:** All heavy computations—converting incompatible formats (FLAC/OGG/WAV to MP3), reducing bitrates to save the car's limited internal flash storage, and merging multiple tracks—happen on your computer via background FFmpeg workers, not on the car head unit.
+- **Resumable Chunked Downloads:** HTTP Range header support allows large downloads to be paused and resumed seamlessly without losing progress.
 
 ---
 
-## ⚠️ ข้อจำกัดสำคัญของระบบเครือข่าย (Important Network Limitations)
+## ✨ Features Overview
 
-> 💡 **โปรดทราบข้อจำกัดทางเทคนิคของเครือข่าย Wi-Fi และ HTTP:**
-> 1. **A normal HTTP server cannot enumerate every device connected to the same Wi-Fi network:** HTTP Server ปกติไม่สามารถสแกนหรือตรวจจับทุกอุปกรณ์ที่เกาะอยู่ใน Wi-Fi เดียวกันได้โดยที่อุปกรณ์นั้นไม่ได้ส่ง Request เข้ามายังเซิร์ฟเวอร์
-> 2. **Device discovery requires explicit client registration or LAN communication:** การระบุตัวตนของอุปกรณ์ (Device Registry) ต้องอาศัยการส่งสัญญาณลงทะเบียนจากฝั่ง Client ผ่าน Browser หรือแอปพลิเคชัน
-> 3. **Hotspot client isolation may prevent device-to-device communication:** โหมด Hotspot บนมือถือหรือ Router บางรุ่นอาจเปิดฟีเจอร์ "AP/Client Isolation" ซึ่งจะบล็อกไม่ให้อุปกรณ์สองเครื่องคุยกันโดยตรง (หากพบปัญหาจอรถมองไม่เห็น Mac ให้ตรวจสอบการตั้งค่า Hotspot)
-> 4. **A device can appear offline because it is sleeping or temporarily disconnected:** อุปกรณ์อาจถูกระบุว่า "Offline" หากหน้าจอดับ เข้าสู่โหมด Sleep หรือสัญญาณ Wi-Fi หลุดชั่วคราว
-> 5. **An HTTP connection does not necessarily represent a persistent online device:** การเชื่อมต่อ HTTP เป็นแบบ Request-Response (Stateless) การที่ Socket เปิดหรือปิดไม่ได้หมายความว่าอุปกรณ์นั้นเปิดหรือปิดอยู่ตลอดเวลา ระบบจึงใช้ Heartbeat และ `last_seen` ในการประเมินสถานะออนไลน์
+### 1. 🚗 Zero-JS Car Download Portal (`/`)
+- Pure HTML5 download portal engineered specifically for legacy Android Chrome and Android Stock Browsers.
+- One-tap direct downloads with standard browser download management.
+- Supports HTTP Range Requests (`bytes=start-end`) for resumable downloads.
+- Clean high-contrast, touch-friendly UI designed for in-car dashboard screens.
+
+### 2. ⚡ Zero-Dependency Core Server
+- Built exclusively with Python 3 Standard Library modules (`http.server`, `socketserver`, `sqlite3`, `hashlib`, `hmac`, `secrets`, `threading`, `subprocess`).
+- Streaming multipart parser reads 100MB+ files in small 64KB chunks directly to disk—never buffering entire files in memory.
+- Cross-platform launcher scripts: [start.sh](file:///d:/MyPrograms/Project/LocalShare/start.sh) for macOS/Linux and [start.bat](file:///d:/MyPrograms/Project/LocalShare/start.bat) for Windows.
+
+### 3. 📁 File Management & Multi-Select Batch Delete (`/admin`)
+- Drag-and-drop upload zone with real-time speed, progress bar, and percentage indicators.
+- **Multi-Select Batch Delete:** Check individual songs or use "Select All" with a batch action toolbar to delete multiple tracks in a single confirmation.
+- **Safe Rename:** Rename songs without losing original extensions; protects against path traversal and duplicate names.
+- **Full Unicode & Thai Support:** Native UTF-8 parsing with RFC 5987 / RFC 6266 (`filename*=UTF-8''...`) support and automated mojibake recovery (e.g. recovering corrupted Latin-1 byte sequences).
+
+### 4. 🎛️ Audio Studio & FFmpeg Engine (`/studio`)
+- **Audio Optimization & Conversion:** Convert between MP3, WAV, M4A, AAC, FLAC, OGG, and OPUS with customizable bitrates (96–320 kbps) and sample rates (44.1 / 48 kHz).
+- **Mixed Format Concatenation:** Seamlessly merge different input formats (e.g., MP3 + WAV + M4A) with auto-normalization.
+- **Crossfade & Silence Gaps:** Insert custom silence pauses between tracks or blend tracks using multi-channel audio crossfading.
+- **Background Task Queue:** Audio jobs run asynchronously in background worker threads without blocking file transfers or downloads.
+
+### 5. 📊 Network Dashboard & Device Monitoring (`/dashboard`)
+- **Real-Time Network Metrics:** Server uptime, active TCP connections, live upload/download throughput (KB/s, MB/s), and total transfer volume.
+- **Live Transfer Tracker:** Dedicated progress and ETA tracking for active file transfers (background polling excluded).
+- **Device Discovery & Registry:** Persistent Device IDs, client heartbeat mechanism (10–15s ping, 35–45s offline timeout), and device classification (Desktop, Mobile, Car Head Unit).
+- **Device Revocation:** Admins can instantly revoke unwanted client access.
+
+### 6. 🔒 SQLite Activity Logging & Admin Security
+- **Persistent Database:** SQLite in Write-Ahead Logging (WAL) mode for multi-threaded concurrency.
+- **Comprehensive Event Logs:** Records server starts/stops, device heartbeats, uploads, downloads, conversions, renames, and auth failures.
+- **Search, Filter & CSV Export:** Search logs by keyword, filter by event type, paginate records, and export to CSV.
+- **Dashboard Lock Screen:** `/dashboard` is gated behind an authentication screen—no metrics or logs are visible to unauthorized clients.
+- **Safe for Public GitHub:** Admin PIN and password are configured in `config.json` (gitignored). A `config.example.json` template is provided for convenience.
+- **Security Protections:** PBKDF2-HMAC-SHA256 password hashing (100,000 iterations), random salt, constant-time comparisons (`hmac.compare_digest`), and IP-based rate limiting (5 failed attempts per 5 minutes triggers lockout).
 
 ---
 
-## 🔧 การติดตั้ง FFmpeg (สำหรับ Audio Studio)
+## 🔧 Prerequisites
 
-ระบบประมวลผลเสียงใช้ FFmpeg ติดตั้งได้ง่ายๆ:
-- **macOS:** `brew install ffmpeg`
-- **Windows:** `winget install Gyan.FFmpeg`
-- **Linux:** `sudo apt install -y ffmpeg`
+- **Python 3.8+** (Uses standard library only, no `pip install` required).
+- **FFmpeg** (Required only for Audio Studio conversion and merging):
+  - **macOS:** `brew install ffmpeg`
+  - **Windows:** `winget install Gyan.FFmpeg`
+  - **Linux:** `sudo apt update && sudo apt install -y ffmpeg`
 
 ---
 
-## 🚀 วิธีเริ่มต้นใช้งาน (Quick Start)
+## 🚀 Quick Start
 
-รันเซิร์ฟเวอร์ด้วยคำสั่งเดียว:
+### 1. Launch the Server
+
+Run with a single command:
 
 ```bash
-python3 server.py
+# macOS / Linux
+./start.sh
+# or: python3 server.py
+
+# Windows
+start.bat
+# or: python server.py
 ```
 
-หน้าจอ Terminal จะแสดงข้อมูลการเข้าถึงทุกส่วน:
+### 2. Connect Your Car Head Unit
+
+1. Enable the **Personal Hotspot** on your phone or laptop.
+2. Connect both your laptop and the car's Android head unit to the **same Wi-Fi hotspot**.
+3. Check the startup banner in your laptop terminal:
 
 ```text
 ====================================================================
@@ -72,7 +107,7 @@ python3 server.py
 ====================================================================
  * Status         : Running
  * Port           : 8000
- * Database       : SQLite (music_server.db in WAL mode)
+ * Database       : SQLite (data/music_server.db in WAL mode)
  * FFmpeg Engine  : Available (Ready)
  * Music Folder   : /Users/.../music
 
@@ -82,115 +117,159 @@ python3 server.py
                          http://localhost:8000/dashboard
  -> Audio Studio (Mac) : http://192.168.43.50:8000/studio
  -> Music Admin / DL   : http://192.168.43.50:8000/admin
+
+ [Security & Access Notice]
+ - Admin Auth         : Protected (Credentials configured in config.json)
+ - Car View ('/')     : 100% Zero-JS and requires no authentication.
+ - Wi-Fi Hotspot only : DO NOT expose this port to the public internet.
 ====================================================================
 ```
 
----
-
-## 📡 สรุป API Endpoints
-
-### 1. หน้าเว็บ (Pages)
-- `GET /` หรือ `/index.html`: Car Download Page (Zero-JS ready)
-- `GET /dashboard`: Network Dashboard & Device Monitoring
-- `GET /admin`: Music Upload & File Management
-- `GET /studio`: Audio Merge & Crossfade Studio
-
-### 2. แดชบอร์ดและอุปกรณ์ (Dashboard & Devices)
-- `GET /api/dashboard/stats`: ข้อมูลสถิติเซิร์ฟเวอร์, Uptime, Throughput, และ Live Transfers
-- `GET /api/devices`: รายการอุปกรณ์ที่ลงทะเบียนและประวัติการเชื่อมต่อ
-- `POST /api/devices/register`: ลงทะเบียนอุปกรณ์ (`{"device_id": "...", "name": "...", "device_type": "..."}`)
-- `POST /api/devices/heartbeat`: อัปเดตสถานะออนไลน์ (`{"device_id": "...", "current_activity": "..."}`)
-- `POST /api/devices/revoke`: เพิกถอนสิทธิ์อุปกรณ์ (ต้องใช้ Admin Auth)
-
-### 3. บันทึกประวัติ (Logs & Security)
-- `GET /api/logs`: ดึงรายการ Log แบบแบ่งหน้าพร้อมตัวกรอง (`?page=1&limit=20&search=...&event_type=...`)
-- `GET /api/logs/export`: ส่งออก Log เป็นไฟล์ `.csv`
-- `POST /api/logs/clear`: ล้างประวัติ Log ทั้งหมด (ต้องใช้ Admin Auth)
-- `POST /api/auth/login`: ตรวจสอบ PIN/Password (`{"secret": "your_pin_or_password"}`) รับ Session Token
-- `POST /api/auth/logout`: ออกจากระบบเซสชันแอดมิน
-- `GET /api/auth/status`: ตรวจสอบสถานะการยืนยันตัวตนในปัจจุบัน
-
-### 4. การจัดการไฟล์และแปลงเสียง (Files & Audio Processing)
-- `GET /api/files`: รายการไฟล์เสียง JSON (`?meta=1` เพื่อดูความยาว)
-- `GET /download/<filename>`: สตรีมมิ่งดาวน์โหลดไฟล์เสียง Chunked 64KB
-- `POST /api/upload`: อัปโหลดไฟล์เสียงสตรีมมิ่ง (รองรับ 100MB+)
-- `POST /api/rename`: เปลี่ยนชื่อไฟล์โดยคงนามสกุลเดิม
-- `POST /api/convert`: สั่งแปลงไฟล์หรือบีบอัดเสียงใน Background
-- `POST /api/merge`: สั่งรวมไฟล์เสียงหลากฟอร์แมต (Concat, Silence, Crossfade)
-- `POST /api/delete`: ลบไฟล์เสียงเดี่ยว (`{"filename": "..."}`) หรือลบแบบเลือกหลายไฟล์พร้อมกัน Batch Delete (`{"filenames": ["...", "..."]}`)
-- `GET /api/tasks/<task_id>`: ติดตามความคืบหน้าของงานแปลง/รวมเสียง
+4. On your **Car Head Unit**, open the browser and visit `http://192.168.43.50:8000/`. Tap **DOWNLOAD** next to any song.
 
 ---
 
-## 📁 โครงสร้างโปรเจกต์ (Project Structure)
+## ⚙️ Configuration (`config.json`)
 
-โปรเจกต์ได้รับการจัดระเบียบตามมาตรฐาน Clean Architecture แยกเป็นโมดูลชัดเจน:
+On the first run, the server automatically generates `config.json` in the root directory. This file is **ignored by Git** to prevent leaking passwords to public repositories:
+
+```json
+{
+  "server_port": 8000,
+  "admin_pin": "8888",
+  "admin_password": "admin"
+}
+```
+
+You can change `admin_pin` and `admin_password` to your desired values anytime. Restarting the server will automatically update the hashed credentials in the SQLite database.
+
+### Environment Variable Overrides
+You can also override settings via environment variables:
+- `ADMIN_PIN`: Custom admin PIN
+- `ADMIN_PASSWORD`: Custom admin password
+- `LOCAL_MUSIC_PORT`: Custom port number
+
+---
+
+## 📁 Project Structure
+
+The project follows a clean modular architecture:
 
 ```text
 LocalShare/
-├── server.py                   # Main HTTP Server Entry Point (Zero-dependency)
-├── run_tests.py                # Master Automated Test Runner (All suites)
-├── README.md                   # Project Documentation
-├── requirements.txt            # Python Dependencies
-├── .gitignore                  # Git Ignore configuration
+├── server.py                        # HTTP Server Entry Point (Standard Library only)
+├── run_tests.py                     # Master Automated Test Runner (All suites)
+├── start.sh                         # Unix/macOS Launcher Script (Executable 100755)
+├── start.bat                        # Windows Launcher Script
+├── config.example.json              # Public Template Configuration
+├── README.md                        # Documentation
+├── requirements.txt                 # Documentation of standard library modules
+├── .gitignore                       # Git Ignore configuration
 │
-├── src/                        # Backend Modules & Core Services
+├── src/                             # Backend Services & Logic
 │   ├── __init__.py
-│   ├── audio_service.py        # Audio Processing Coordinator & Task Queue
-│   ├── audio_convert.py        # FFmpeg Audio Conversion & Optimization Engine
-│   ├── audio_merge.py          # FFmpeg Audio Concatenation & Crossfade Engine
-│   ├── auth_service.py         # PBKDF2 Auth, Constant-Time Compare & Rate Limiting
-│   ├── db_service.py           # SQLite Database Manager (WAL mode & schema)
-│   └── monitor_service.py      # Network Metrics, Device Registry & Activity Tracker
+│   ├── audio_service.py             # Task coordinator & background worker queue
+│   ├── audio_convert.py             # FFmpeg conversion and optimization engine
+│   ├── audio_merge.py               # FFmpeg concatenation, silence & crossfade engine
+│   ├── auth_service.py              # PBKDF2 hashing, constant-time compare & rate limiter
+│   ├── db_service.py                # SQLite database management (WAL mode)
+│   └── monitor_service.py           # Metrics tracker, device registry & activity logger
 │
-├── web/                        # Frontend UI Templates & Static Assets
-│   ├── index.html              # Legacy Android Car Download Page (Zero-JS compatible)
-│   ├── admin.html              # Music Upload & File Management Page
-│   ├── studio.html             # Audio Merge & Crossfade Studio Page
-│   ├── dashboard.html          # Network Dashboard & Device Monitoring Page
+├── web/                             # Frontend UI & Assets
+│   ├── index.html                   # Zero-JS Legacy Car Download Portal
+│   ├── admin.html                   # Upload, batch delete & song management
+│   ├── studio.html                  # Audio Studio merge & crossfade interface
+│   ├── dashboard.html               # Network Dashboard & Device Monitoring view
 │   ├── css/
-│   │   └── style.css           # Global Dark Theme Stylesheet
+│   │   └── style.css                # Global responsive dark theme stylesheet
 │   └── js/
-│       ├── app.js              # Admin & Upload Logic (Streaming Chunked Upload)
-│       ├── studio.js           # Audio Studio Logic (Drag & Drop track ordering)
-│       └── dashboard.js        # Network Dashboard Real-time Polling & Log UI
+│       ├── app.js                   # Admin client logic (Streaming upload & batch delete)
+│       ├── studio.js                # Studio client logic (Drag & drop track ordering)
+│       └── dashboard.js             # Dashboard client logic (Lock screen & metrics polling)
 │
-├── data/                       # Persistent Data Storage
-│   └── music_server.db         # SQLite Database (survives restarts)
+├── data/                            # Persistent Data Storage (Gitignored)
+│   ├── .gitkeep
+│   └── music_server.db              # SQLite Database
 │
-├── music/                      # Music Files Repository (Uploaded & converted audio)
+├── music/                           # Music Storage Repository (Gitignored)
+│   └── .gitkeep
 │
-└── tests/                      # Automated Test Suites
+└── tests/                           # Automated Test Suites
     ├── __init__.py
-    ├── test_integration.py     # Base HTTP Server & Streaming Upload/Download Tests
-    ├── test_audio_studio.py    # FFmpeg Convert & Merge Studio Tests (10 tests)
-    └── test_dashboard_monitoring.py # Network Dashboard & Device Monitoring Tests (11 tests)
+    ├── test_integration.py          # HTTP streaming, Thai Unicode, 100MB+, batch delete
+    ├── test_audio_studio.py         # FFmpeg conversion, crossfade & merge tests (10 tests)
+    └── test_dashboard_monitoring.py # Concurrency, heartbeat, auth, logging tests (11 tests)
 ```
 
 ---
 
-## 🧪 การทดสอบระบบ (Automated Tests)
+## 📡 API Reference
 
-คุณสามารถรันการทดสอบทั้งหมดผ่าน **Master Test Runner** คำสั่งเดียว:
+### 1. Web Pages
+- `GET /` or `/index.html`: Zero-JS Car Download Portal
+- `GET /admin`: File Upload and Management Console
+- `GET /studio`: Audio Merge and Crossfade Studio
+- `GET /dashboard`: Network Dashboard & Monitoring (Gated behind Lock Screen)
+
+### 2. Files & Audio Operations
+- `GET /api/files`: JSON list of all songs (`?meta=1` includes bitrate, duration, sample rate)
+- `GET /download/<filename>`: Stream download file with HTTP Range support
+- `POST /api/upload`: Streaming chunked multipart upload (supports 100MB+ files)
+- `POST /api/rename`: Rename audio file while strictly preserving original format
+- `POST /api/delete`: Delete single file (`{"filename": "..."}`) or batch delete (`{"filenames": ["...", "..."]}`)
+- `POST /api/convert`: Launch background audio conversion / bitrate optimization
+- `POST /api/merge`: Launch background multi-track concatenation with crossfade
+- `GET /api/tasks/<task_id>`: Check audio conversion or merge progress
+
+### 3. Monitoring & Device Registry
+- `GET /api/dashboard/stats`: Server health, uptime, throughput, active connections, and live transfers
+- `GET /api/devices`: List registered devices and online/offline status (Requires Admin Auth)
+- `POST /api/devices/register`: Register client device (`device_id`, `name`, `device_type`)
+- `POST /api/devices/heartbeat`: Update device online status (`device_id`, `current_activity`)
+- `POST /api/devices/revoke`: Revoke device access (Requires Admin Auth)
+
+### 4. Security & Logs
+- `POST /api/auth/login`: Authenticate with PIN or Password (`{"secret": "..."}`)
+- `POST /api/auth/logout`: Revoke active admin session token
+- `GET /api/auth/status`: Check current session authentication status
+- `GET /api/logs`: Paginated activity logs with search and filtering (Requires Admin Auth)
+- `GET /api/logs/export`: Download all activity logs as `.csv` (Requires Admin Auth)
+- `POST /api/logs/clear`: Clear activity log history and vacuum database (Requires Admin Auth)
+- `POST /api/server/stop`: Graceful server shutdown (Requires Admin Auth)
+
+---
+
+## 🧪 Automated Testing
+
+Run the complete test suite with the master test runner:
 
 ```bash
 python run_tests.py
 ```
 
-หรือเลือกรันเฉพาะชุดทดสอบที่ต้องการ:
+Or run individual suites:
 
-1. **ชุดทดสอบแดชบอร์ดและเครือข่าย (11 การทดสอบ):**
-   ```bash
-   python tests/test_dashboard_monitoring.py
-   ```
-   *(ทดสอบการเชื่อมต่อพร้อมกัน, Device Heartbeat, Offline Timeout, Log บันทึก Upload/Download, Interrupted Transfer, Server Restart Persistence, Auth Rate Limiting, และความเข้ากันได้กับจอรถ)*
+```bash
+# 1. Base HTTP & Streaming Integration Tests
+python tests/test_integration.py
 
-2. **ชุดทดสอบการประมวลผลเสียง FFmpeg (10 การทดสอบ):**
-   ```bash
-   python tests/test_audio_studio.py
-   ```
+# 2. FFmpeg Audio Studio Conversion & Merge Tests
+python tests/test_audio_studio.py
 
-3. **ชุดทดสอบ Integration พื้นฐาน:**
-   ```bash
-   python tests/test_integration.py
-   ```
+# 3. Network Dashboard, Heartbeat & Security Tests
+python tests/test_dashboard_monitoring.py
+```
+
+---
+
+## ⚠️ Important Network Notes
+
+1. **AP / Client Isolation:** Some phone hotspots and travel routers have "AP Isolation" or "Client Isolation" turned on by default. If your car head unit cannot open the URL, disable AP Isolation in your hotspot settings so connected devices can talk to each other.
+2. **Device Discovery:** Normal HTTP servers cannot blindly probe all devices connected to a Wi-Fi hotspot without an explicit request. The server identifies devices when they send a registration request or access the server.
+3. **Hotspot IP Changes:** When toggling a phone hotspot, your laptop's Wi-Fi IP address may change. Always refer to the startup banner in the terminal for the latest URL.
+
+---
+
+## 📄 License
+
+MIT License. Open-source and free for personal and vehicle use.
