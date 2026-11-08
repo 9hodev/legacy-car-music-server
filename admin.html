@@ -15,11 +15,12 @@
         <div class="logo-icon">&#9835;</div>
         <div>
           <h1>Music Drop Admin</h1>
-          <p class="subtitle">Upload & Manage Songs for Android Head Unit</p>
+          <p class="subtitle">Upload, Optimize &amp; Manage Songs for Android Head Unit</p>
         </div>
       </div>
       <div class="header-actions">
-        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Open Car View</a>
+        <a href="/studio" class="btn btn-studio">&#127911; Audio Studio</a>
+        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Car View</a>
         <button id="btn-refresh" class="btn btn-secondary" onclick="loadFilesList()">&#8635; Refresh</button>
       </div>
     </header>
@@ -28,7 +29,7 @@
     <section class="card upload-card">
       <div class="card-header">
         <h2>Upload Music Files</h2>
-        <span class="badge">Supports: MP3, M4A, AAC, FLAC, WAV, OGG (100MB+)</span>
+        <span class="badge">Supports: MP3, WAV, M4A, AAC, FLAC, OGG, OPUS (100MB+)</span>
       </div>
 
       <!-- Drop Zone -->
@@ -38,7 +39,7 @@
           <strong>Drag &amp; drop audio files here</strong>
           <span>or click to browse from your Mac</span>
         </div>
-        <input type="file" id="file-input" multiple accept=".mp3,.m4a,.aac,.flac,.wav,.ogg" style="display:none;">
+        <input type="file" id="file-input" multiple accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" style="display:none;">
         <button type="button" class="btn btn-primary" onclick="document.getElementById('file-input').click()">
           Browse Files
         </button>
@@ -78,9 +79,9 @@
         <table class="music-table">
           <thead>
             <tr>
-              <th style="width: 45%;">Song Title</th>
-              <th style="width: 15%;">Size</th>
-              <th style="width: 40%; text-align: right;">Actions</th>
+              <th style="width: 36%;">Song Title</th>
+              <th style="width: 14%;">Size</th>
+              <th style="width: 50%; text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody id="files-tbody">
@@ -100,6 +101,118 @@
     </footer>
   </div>
 
+  <!-- Rename Modal Dialog -->
+  <div id="rename-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Rename Audio File</h3>
+        <button class="modal-close" onclick="closeRenameModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-label">Original file: <strong id="rename-original-name"></strong></p>
+        <div class="input-with-addon">
+          <input type="text" id="rename-input" class="admin-input" placeholder="Enter new filename">
+          <span id="rename-ext-addon" class="input-addon">.mp3</span>
+        </div>
+        <div class="hint-text">The original audio format and extension are strictly preserved.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeRenameModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitRename()">Save Name</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Optimize / Convert Modal Dialog -->
+  <div id="optimize-modal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Audio Optimize &amp; Convert</h3>
+        <button class="modal-close" onclick="closeOptimizeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="info-banner">
+          <div>Source: <strong id="opt-source-name"></strong></div>
+          <div id="opt-source-info" class="text-muted"></div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Output Format</label>
+            <select id="opt-format" class="admin-select" onchange="checkLossyWarning()">
+              <option value="mp3" selected>MP3 (Default, Universal Car Compatibility)</option>
+              <option value="m4a">M4A / AAC (High Efficiency)</option>
+              <option value="ogg">OGG Vorbis</option>
+              <option value="wav">WAV (Lossless PCM)</option>
+              <option value="flac">FLAC (Lossless Compressed)</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="opt-bitrate-group">
+            <label>Bitrate</label>
+            <select id="opt-bitrate" class="admin-select">
+              <option value="320k">320 kbps (High Quality)</option>
+              <option value="256k">256 kbps (Very Good)</option>
+              <option value="192k" selected>192 kbps (Standard, Recommended)</option>
+              <option value="128k">128 kbps (Space Saver)</option>
+              <option value="96k">96 kbps (Minimum)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Sample Rate</label>
+            <select id="opt-samplerate" class="admin-select">
+              <option value="" selected>Keep Original</option>
+              <option value="44100">44,100 Hz (CD Standard)</option>
+              <option value="48000">48,000 Hz (Modern Audio)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Channels</label>
+            <select id="opt-channels" class="admin-select">
+              <option value="" selected>Keep Original</option>
+              <option value="2">Stereo (2 Channels)</option>
+              <option value="1">Mono (1 Channel)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label>Output Filename (Optional)</label>
+          <input type="text" id="opt-output-filename" class="admin-input" placeholder="Leave empty for auto-name (e.g. song_opt.mp3)">
+        </div>
+
+        <div class="form-checkbox" style="margin-top: 10px;">
+          <label>
+            <input type="checkbox" id="opt-overwrite">
+            Overwrite original file (Default: unchecked to preserve original)
+          </label>
+        </div>
+
+        <div id="opt-lossy-warning" class="alert alert-warning" style="display: none; margin-top: 14px;">
+          &#9888; <strong>Quality Notice:</strong> Converting between lossy formats (e.g. MP3 &harr; AAC) may cause slight generational audio degradation.
+        </div>
+
+        <!-- Conversion Progress Inside Modal -->
+        <div id="opt-progress-box" class="upload-progress-container" style="display: none; margin-top: 16px;">
+          <div class="progress-info">
+            <span id="opt-status-text">Processing with FFmpeg...</span>
+            <span id="opt-percentage">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="opt-progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div id="opt-progress-details" class="progress-details">Starting conversion engine...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="opt-btn-cancel" onclick="closeOptimizeModal()">Cancel</button>
+        <button class="btn btn-primary" id="opt-btn-submit" onclick="submitOptimize()">Start Optimize</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Notification Toast -->
   <div id="toast" class="toast"></div>
 
@@ -109,4 +222,3 @@
   <script src="/app.js"></script>
 </body>
 </html>
-

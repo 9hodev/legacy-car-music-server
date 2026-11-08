@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Merge Studio - Local Music Server</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="admin-body">
+
+  <div class="admin-container studio-container">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="header-brand">
+        <div class="logo-icon">&#127911;</div>
+        <div>
+          <h1>Audio Merge Studio</h1>
+          <p class="subtitle">Combine, Normalize &amp; Crossfade Multiple Audio Formats with FFmpeg</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="/admin" class="btn btn-secondary">&#128193; Music Library</a>
+        <a href="/" class="btn btn-secondary" target="_blank">&#128663; Car View</a>
+      </div>
+    </header>
+
+    <!-- Studio Grid (Left: Available Tracks, Right: Merge Queue & Settings) -->
+    <div class="studio-grid">
+      
+      <!-- Left Column: Available Tracks -->
+      <section class="card studio-card">
+        <div class="card-header space-between">
+          <div class="title-with-badge">
+            <h2>Available Music Tracks</h2>
+            <span id="avail-count" class="badge badge-primary">0 files</span>
+          </div>
+          <button class="btn btn-secondary btn-small" onclick="loadStudioFiles()">&#8635; Refresh</button>
+        </div>
+
+        <p class="section-desc">Click <strong>+ Add</strong> on any track to append it to your merge queue. You can mix any formats (MP3, WAV, M4A, FLAC, OGG, OPUS).</p>
+
+        <div class="studio-track-list" id="available-tracks-list">
+          <div class="table-loading">Loading library tracks...</div>
+        </div>
+      </section>
+
+      <!-- Right Column: Merge Queue & Settings -->
+      <section class="card studio-card">
+        <div class="card-header space-between">
+          <div class="title-with-badge">
+            <h2>Merge Timeline Queue</h2>
+            <span id="queue-count" class="badge badge-primary">0 tracks</span>
+          </div>
+          <button class="btn btn-danger btn-small" onclick="clearQueue()">Clear Queue</button>
+        </div>
+
+        <!-- Queue Items Container (Supports Drag & Drop and Move Up/Down) -->
+        <div id="queue-container" class="queue-container">
+          <div class="queue-empty">
+            <div class="queue-empty-icon">&#127926;</div>
+            <p><strong>Your merge queue is empty</strong></p>
+            <span>Add 2 or more tracks from the left list to begin merging</span>
+          </div>
+        </div>
+
+        <!-- Queue Summary Bar -->
+        <div class="queue-summary-bar">
+          <div>Total Source Size: <strong id="queue-total-size">0 MB</strong></div>
+          <div>Estimated Duration: <strong id="queue-total-duration">00:00</strong></div>
+        </div>
+
+        <!-- Merge Settings Form -->
+        <div class="merge-settings-box">
+          <h3 class="settings-title">&#9881; Output &amp; Transition Settings</h3>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Output Filename</label>
+              <input type="text" id="merge-filename" class="admin-input" placeholder="e.g. roadtrip_mix">
+            </div>
+
+            <div class="form-group">
+              <label>Output Format</label>
+              <select id="merge-format" class="admin-select" onchange="toggleMergeBitrate()">
+                <option value="mp3" selected>MP3 (Default, Universal Car Compatibility)</option>
+                <option value="m4a">M4A / AAC</option>
+                <option value="ogg">OGG Vorbis</option>
+                <option value="wav">WAV (Lossless)</option>
+                <option value="flac">FLAC (Lossless)</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="merge-bitrate-group">
+              <label>Bitrate</label>
+              <select id="merge-bitrate" class="admin-select">
+                <option value="320k">320 kbps (High Quality)</option>
+                <option value="256k">256 kbps (Very Good)</option>
+                <option value="192k" selected>192 kbps (Default Standard)</option>
+                <option value="128k">128 kbps (Space Saver)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Sample Rate</label>
+              <select id="merge-samplerate" class="admin-select">
+                <option value="44100" selected>44,100 Hz (Standard Audio)</option>
+                <option value="48000">48,000 Hz (High Resolution)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Channels</label>
+              <select id="merge-channels" class="admin-select">
+                <option value="2" selected>Stereo (2 Channels)</option>
+                <option value="1">Mono (1 Channel)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Crossfade Duration (Seconds)</label>
+              <select id="merge-crossfade" class="admin-select" onchange="onCrossfadeChange()">
+                <option value="0" selected>0s (No crossfade / direct concat)</option>
+                <option value="1">1 second</option>
+                <option value="2">2 seconds</option>
+                <option value="3">3 seconds</option>
+                <option value="4">4 seconds</option>
+                <option value="5">5 seconds</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="silence-group">
+              <label>Silence Between Tracks (Seconds)</label>
+              <select id="merge-silence" class="admin-select">
+                <option value="0" selected>0s (Continuous play)</option>
+                <option value="1">1 second gap</option>
+                <option value="2">2 seconds gap</option>
+                <option value="3">3 seconds gap</option>
+                <option value="5">5 seconds gap</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="merge-action-bar">
+            <button id="btn-merge-start" class="btn btn-primary btn-large" onclick="submitMerge()">
+              &#9889; Merge Tracks Now
+            </button>
+          </div>
+        </div>
+
+        <!-- Merge Progress & Results Container -->
+        <div id="merge-progress-box" class="upload-progress-container" style="display: none; margin-top: 20px;">
+          <div class="progress-info">
+            <span id="merge-status-text">Processing Audio Streams...</span>
+            <span id="merge-percentage">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div id="merge-progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div id="merge-progress-details" class="progress-details">Initializing FFmpeg pipeline...</div>
+
+          <div id="merge-success-actions" class="merge-success-actions" style="display: none; margin-top: 16px;">
+            <a id="btn-download-merged" class="btn btn-primary btn-large" href="#" download>
+              &#11015; Download Merged Track
+            </a>
+            <a href="/" class="btn btn-secondary" target="_blank">&#128663; View on Car Screen</a>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- Security Footer -->
+    <footer class="admin-footer">
+      <div class="footer-note">
+        <strong>Audio Studio Engine:</strong> Powered by FFmpeg on Mac. All encoding and stream normalizations occur server-side without degrading CPU performance or blocking HTTP downloads.
+      </div>
+    </footer>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="/studio.js"></script>
+</body>
+</html>

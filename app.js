@@ -5,6 +5,10 @@
 
 var filesList = [];
 var isUploading = false;
+var currentRenameFile = "";
+var currentOptimizeFile = "";
+var activeTaskId = null;
+var taskPollTimer = null;
 
 // DOM Elements
 var dropZone = document.getElementById("drop-zone");
@@ -19,6 +23,31 @@ var filesTbody = document.getElementById("files-tbody");
 var libraryCount = document.getElementById("library-count");
 var libraryTotalSize = document.getElementById("library-total-size");
 var toast = document.getElementById("toast");
+
+// Modals
+var renameModal = document.getElementById("rename-modal");
+var renameInput = document.getElementById("rename-input");
+var renameOriginalName = document.getElementById("rename-original-name");
+var renameExtAddon = document.getElementById("rename-ext-addon");
+
+var optimizeModal = document.getElementById("optimize-modal");
+var optSourceName = document.getElementById("opt-source-name");
+var optSourceInfo = document.getElementById("opt-source-info");
+var optFormat = document.getElementById("opt-format");
+var optBitrate = document.getElementById("opt-bitrate");
+var optBitrateGroup = document.getElementById("opt-bitrate-group");
+var optSamplerate = document.getElementById("opt-samplerate");
+var optChannels = document.getElementById("opt-channels");
+var optOutputFilename = document.getElementById("opt-output-filename");
+var optOverwrite = document.getElementById("opt-overwrite");
+var optLossyWarning = document.getElementById("opt-lossy-warning");
+var optProgressBox = document.getElementById("opt-progress-box");
+var optStatusText = document.getElementById("opt-status-text");
+var optPercentage = document.getElementById("opt-percentage");
+var optProgressBar = document.getElementById("opt-progress-bar");
+var optProgressDetails = document.getElementById("opt-progress-details");
+var optBtnCancel = document.getElementById("opt-btn-cancel");
+var optBtnSubmit = document.getElementById("opt-btn-submit");
 
 // Initialize Event Listeners
 document.addEventListener("DOMContentLoaded", function () {
@@ -57,7 +86,6 @@ function initDragAndDrop() {
     }
   }, false);
 
-  // Allow clicking drop-zone (outside of button) to browse
   dropZone.addEventListener("click", function (e) {
     if (e.target.tagName !== "BUTTON" && fileInput) {
       fileInput.click();
@@ -84,7 +112,7 @@ function handleFilesUpload(files) {
   }
 
   var validFiles = [];
-  var allowedExts = [".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg"];
+  var allowedExts = [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus"];
 
   for (var i = 0; i < files.length; i++) {
     var file = files[i];
@@ -96,15 +124,11 @@ function handleFilesUpload(files) {
     if (hasValidExt) {
       validFiles.push(file);
     } else {
-      showAlert("Skipped '" + file.name + "': Only audio files (.mp3, .m4a, .aac, .flac, .wav, .ogg) are supported.", "error");
+      showAlert("Skipped '" + file.name + "': Only audio files are supported.", "error");
     }
   }
 
-  if (validFiles.length === 0) {
-    return;
-  }
-
-  // Upload sequential files
+  if (validFiles.length === 0) return;
   uploadQueue(validFiles, 0);
 }
 
@@ -143,7 +167,6 @@ function uploadQueue(files, index) {
       var loadedFormatted = formatBytes(e.loaded);
       var totalFormatted = formatBytes(e.total);
       
-      // Calculate speed
       var elapsedSec = (Date.now() - startTime) / 1000;
       var speedFormatted = "";
       if (elapsedSec > 0.5) {
@@ -195,7 +218,7 @@ function uploadQueue(files, index) {
 // ----------------------------------------------------------------------
 function loadFilesList() {
   var xhr = new XMLHttpRequest();
-  xhr.open("GET", "/api/files", true);
+  xhr.open("GET", "/api/files?meta=1", true);
   xhr.onload = function () {
     if (xhr.status >= 200 && xhr.status < 300) {
       try {
@@ -244,24 +267,36 @@ function renderMusicTable(list) {
     var file = list[i];
     var safeName = escapeHtml(file.name);
     var fullUrl = window.location.origin + file.url;
+    var isLocked = Boolean(file.is_locked);
+    var durationStr = file.duration_formatted ? ' <span class="badge-dim">' + file.duration_formatted + '</span>' : '';
+
+    var lockedBadge = isLocked ? ' <span class="badge badge-warning">Processing</span>' : '';
 
     rowsHtml += '<tr>' +
       '<td>' +
         '<div class="song-cell-title">' +
           '<span class="song-icon">&#9835;</span>' +
           '<span>' + safeName + '</span>' +
+          durationStr +
+          lockedBadge +
         '</div>' +
       '</td>' +
       '<td>' + (file.size_formatted || formatBytes(file.size)) + '</td>' +
       '<td>' +
         '<div class="table-actions">' +
           '<button class="btn btn-secondary btn-small" onclick="copyDownloadUrl(\'' + escapeJsString(fullUrl) + '\')">' +
-            '&#128203; Copy Link' +
+            '&#128203; Copy' +
+          '</button>' +
+          '<button class="btn btn-studio btn-small" onclick="openOptimizeModal(\'' + escapeJsString(file.name) + '\', ' + (file.size || 0) + ')" ' + (isLocked ? 'disabled' : '') + '>' +
+            '&#9881; Optimize' +
+          '</button>' +
+          '<button class="btn btn-secondary btn-small" onclick="openRenameModal(\'' + escapeJsString(file.name) + '\')" ' + (isLocked ? 'disabled' : '') + '>' +
+            '&#9998; Rename' +
           '</button>' +
           '<a class="btn btn-primary btn-small" href="' + file.url + '" download>' +
-            '&#11015; Download' +
+            '&#11015; DL' +
           '</a>' +
-          '<button class="btn btn-danger btn-small" onclick="deleteFile(\'' + escapeJsString(file.name) + '\')">' +
+          '<button class="btn btn-danger btn-small" onclick="deleteFile(\'' + escapeJsString(file.name) + '\')" ' + (isLocked ? 'disabled' : '') + '>' +
             '&#128465; Delete' +
           '</button>' +
         '</div>' +
@@ -279,10 +314,254 @@ function renderTableError(msg) {
 }
 
 // ----------------------------------------------------------------------
+// Rename File Feature
+// ----------------------------------------------------------------------
+function openRenameModal(filename) {
+  currentRenameFile = filename;
+  var dotIdx = filename.lastIndexOf(".");
+  var base = dotIdx !== -1 ? filename.substring(0, dotIdx) : filename;
+  var ext = dotIdx !== -1 ? filename.substring(dotIdx) : "";
+
+  renameOriginalName.textContent = filename;
+  renameInput.value = base;
+  renameExtAddon.textContent = ext;
+  renameModal.style.display = "flex";
+  renameInput.focus();
+}
+
+function closeRenameModal() {
+  renameModal.style.display = "none";
+  currentRenameFile = "";
+}
+
+function submitRename() {
+  var newBase = renameInput.value.trim();
+  if (!newBase) {
+    alert("Please enter a valid filename.");
+    return;
+  }
+
+  var dotIdx = currentRenameFile.lastIndexOf(".");
+  var ext = dotIdx !== -1 ? currentRenameFile.substring(dotIdx) : "";
+  var finalNewName = newBase + ext;
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/rename", true);
+  xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+
+  xhr.onload = function () {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.success) {
+          showToast("Renamed to: " + resp.new_name);
+          closeRenameModal();
+          loadFilesList();
+        } else {
+          alert("Rename error: " + (resp.error || "Unknown error"));
+        }
+      } catch (e) {
+        alert("Failed to parse rename response.");
+      }
+    } else {
+      var errMsg = "Rename failed with status " + xhr.status;
+      try {
+        var errResp = JSON.parse(xhr.responseText);
+        if (errResp.error) errMsg = errResp.error;
+      } catch (e) {}
+      alert(errMsg);
+    }
+  };
+
+  xhr.onerror = function () {
+    alert("Network error during rename.");
+  };
+
+  xhr.send(JSON.stringify({
+    old_name: currentRenameFile,
+    new_name: finalNewName
+  }));
+}
+
+// ----------------------------------------------------------------------
+// Audio Optimize / Convert Feature
+// ----------------------------------------------------------------------
+function openOptimizeModal(filename, size) {
+  currentOptimizeFile = filename;
+  optSourceName.textContent = filename;
+  optSourceInfo.textContent = "File size: " + formatBytes(size);
+
+  var dotIdx = filename.lastIndexOf(".");
+  var base = dotIdx !== -1 ? filename.substring(0, dotIdx) : filename;
+  optOutputFilename.placeholder = base + "_opt.mp3";
+  optOutputFilename.value = "";
+  optOverwrite.checked = false;
+
+  optProgressBox.style.display = "none";
+  optProgressBar.style.width = "0%";
+  optPercentage.textContent = "0%";
+  optBtnSubmit.disabled = false;
+  optBtnCancel.disabled = false;
+
+  checkLossyWarning();
+  optimizeModal.style.display = "flex";
+}
+
+function closeOptimizeModal() {
+  if (activeTaskId && taskPollTimer) {
+    clearInterval(taskPollTimer);
+    taskPollTimer = null;
+    activeTaskId = null;
+  }
+  optimizeModal.style.display = "none";
+  currentOptimizeFile = "";
+}
+
+function checkLossyWarning() {
+  var inExt = "";
+  var dotIdx = currentOptimizeFile.lastIndexOf(".");
+  if (dotIdx !== -1) inExt = currentOptimizeFile.substring(dotIdx).toLowerCase();
+
+  var outFmt = optFormat.value.toLowerCase();
+  var lossyFormats = ["mp3", "m4a", "aac", "ogg", "opus"];
+  var inIsLossy = lossyFormats.some(function (f) { return inExt === "." + f; });
+  var outIsLossy = lossyFormats.indexOf(outFmt) !== -1;
+
+  if (optBitrateGroup) {
+    optBitrateGroup.style.display = (outFmt === "wav" || outFmt === "flac") ? "none" : "block";
+  }
+
+  if (inIsLossy && outIsLossy) {
+    optLossyWarning.style.display = "block";
+  } else {
+    optLossyWarning.style.display = "none";
+  }
+}
+
+function submitOptimize() {
+  var outFmt = optFormat.value;
+  var bitrate = optBitrate.value;
+  var sampleRate = optSamplerate.value ? parseInt(optSamplerate.value) : null;
+  var channels = optChannels.value ? parseInt(optChannels.value) : null;
+  var customName = optOutputFilename.value.trim();
+  var overwrite = optOverwrite.checked;
+
+  optBtnSubmit.disabled = true;
+  optProgressBox.style.display = "block";
+  optProgressBar.style.width = "5%";
+  optPercentage.textContent = "5%";
+  optStatusText.textContent = "Submitting conversion task to FFmpeg...";
+  optProgressDetails.textContent = "Preparing background worker...";
+
+  var payload = {
+    source_filename: currentOptimizeFile,
+    output_format: outFmt,
+    bitrate: bitrate,
+    sample_rate: sampleRate,
+    channels: channels,
+    target_filename: customName,
+    overwrite: overwrite
+  };
+
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/convert", true);
+  xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8");
+
+  xhr.onload = function () {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        var resp = JSON.parse(xhr.responseText);
+        if (resp.success && resp.task_id) {
+          activeTaskId = resp.task_id;
+          pollTaskStatus(resp.task_id);
+        } else {
+          optStatusText.textContent = "Conversion failed: " + (resp.error || "Unknown error");
+          optBtnSubmit.disabled = false;
+        }
+      } catch (e) {
+        optStatusText.textContent = "Failed to parse conversion response.";
+        optBtnSubmit.disabled = false;
+      }
+    } else {
+      var errMsg = "Conversion error (Status " + xhr.status + ")";
+      try {
+        var errResp = JSON.parse(xhr.responseText);
+        if (errResp.error) errMsg = errResp.error;
+      } catch (e) {}
+      optStatusText.textContent = errMsg;
+      optBtnSubmit.disabled = false;
+    }
+  };
+
+  xhr.onerror = function () {
+    optStatusText.textContent = "Network error while connecting to server.";
+    optBtnSubmit.disabled = false;
+  };
+
+  xhr.send(JSON.stringify(payload));
+}
+
+function pollTaskStatus(taskId) {
+  if (taskPollTimer) clearInterval(taskPollTimer);
+
+  taskPollTimer = setInterval(function () {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", "/api/tasks/" + taskId, true);
+    xhr.onload = function () {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.success && resp.task) {
+            updateOptimizeProgress(resp.task);
+          }
+        } catch (e) {}
+      }
+    };
+    xhr.send();
+  }, 500);
+}
+
+function updateOptimizeProgress(task) {
+  var pct = Math.round(task.progress || 0);
+  optProgressBar.style.width = pct + "%";
+  optPercentage.textContent = pct + "%";
+
+  if (task.status === "processing") {
+    optStatusText.textContent = "Encoding with FFmpeg: " + task.target_file;
+    optProgressDetails.textContent = "Progress: " + pct + "% (Non-blocking background job)";
+  } else if (task.status === "completed") {
+    clearInterval(taskPollTimer);
+    taskPollTimer = null;
+    activeTaskId = null;
+
+    var srcSizeStr = formatBytes(task.source_size);
+    var outSizeStr = formatBytes(task.output_size);
+    var redStr = task.reduction_percent > 0 ? " (" + task.reduction_percent + "% smaller)" : "";
+
+    optStatusText.innerHTML = "<strong style='color:#00e676;'>&#10004; Conversion Complete!</strong>";
+    optProgressDetails.textContent = "Input: " + srcSizeStr + " &rarr; Output: " + outSizeStr + redStr;
+
+    showToast("Optimization complete: " + task.target_file);
+    loadFilesList();
+
+    setTimeout(function () {
+      closeOptimizeModal();
+    }, 2500);
+  } else if (task.status === "failed") {
+    clearInterval(taskPollTimer);
+    taskPollTimer = null;
+    activeTaskId = null;
+
+    optStatusText.innerHTML = "<strong style='color:#ff7b72;'>&#10008; Conversion Failed</strong>";
+    optProgressDetails.textContent = task.error || "Unknown FFmpeg error.";
+    optBtnSubmit.disabled = false;
+  }
+}
+
+// ----------------------------------------------------------------------
 // Copy Download Link (With HTTP Fallback)
 // ----------------------------------------------------------------------
 function copyDownloadUrl(url) {
-  // Try modern Clipboard API if supported and available
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(url).then(function () {
       showToast("Download URL copied to clipboard!");
@@ -290,7 +569,6 @@ function copyDownloadUrl(url) {
       copyUsingExecCommand(url);
     });
   } else {
-    // Fallback for plain HTTP origins
     copyUsingExecCommand(url);
   }
 }
@@ -344,7 +622,12 @@ function deleteFile(filename) {
         showAlert("Failed to parse delete response", "error");
       }
     } else {
-      showAlert("Delete failed with status " + xhr.status, "error");
+      var errMsg = "Delete failed with status " + xhr.status;
+      try {
+        var errResp = JSON.parse(xhr.responseText);
+        if (errResp.error) errMsg = errResp.error;
+      } catch (e) {}
+      showAlert(errMsg, "error");
     }
   };
 
@@ -412,4 +695,3 @@ function escapeHtml(text) {
 function escapeJsString(str) {
   return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
-
