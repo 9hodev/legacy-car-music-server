@@ -238,7 +238,7 @@ def run_tests():
 
         # 12. Test Thai Unicode Filename Upload, Listing, and Download
         print("Testing Thai Unicode Filename Upload ...")
-        thai_song_name = "เพลงไทยทดสอบ - เสียงดนตรีบรรเลง.mp3"
+        thai_song_name = "เพลงภาษาไทยทดสอบ_01.mp3"
         thai_audio_data = b"ID3\x03\x00\x00\x00\x00\x00\x00" + (b"T" * 1024)
         boundary_thai = "---------------------------BoundaryThaiTest"
         thai_body_prefix = (
@@ -264,13 +264,13 @@ def run_tests():
             assert resp_data["success"] is True
             uploaded_name = resp_data["files"][0]["name"]
             assert "à¸" not in uploaded_name, f"Mojibake detected in uploaded name: {uploaded_name}"
-            assert "เพลงไทยทดสอบ" in uploaded_name
+            assert "เพลงภาษาไทยทดสอบ_01" in uploaded_name
             print("  -> Thai filename uploaded without mojibake:", uploaded_name)
 
         # Verify Thai song in /api/files
         req_files = urllib.request.urlopen(f"{BASE_URL}/api/files")
         files_list = json.loads(req_files.read().decode('utf-8'))["files"]
-        assert any("เพลงไทยทดสอบ" in f["name"] for f in files_list)
+        assert any("เพลงภาษาไทยทดสอบ_01" in f["name"] for f in files_list)
         print("  -> Thai filename verified in /api/files!")
 
         # Verify Thai song download URL
